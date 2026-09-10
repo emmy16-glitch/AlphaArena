@@ -59,10 +59,10 @@ export default function AppShell({ view, onNav, onHome, children, onCreate }: { 
           {nav.map((n) => {
             const active = view === n.id || (n.id === 'pulse' && inSub && (view === 'asset' || view === 'nightwatch')) || (n.id === 'arena' && view === 'battle');
             return (
-              <button key={n.id} onClick={() => onNav(n.id)} aria-current={active ? 'page' : undefined} className={cn('group flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-[14px] font-medium transition-colors', active ? 'bg-[#141412] text-white' : 'text-[#55554F] hover:bg-[#EDECE7]/70 hover:text-black')}>
+              <a key={n.id} href={`#/${n.id}`} onClick={(event) => { event.preventDefault(); onNav(n.id); }} aria-label={n.label} aria-current={active ? 'page' : undefined} className={cn('group flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-[14px] font-medium transition-colors', active ? 'bg-[#141412] text-white' : 'text-[#55554F] hover:bg-[#EDECE7]/70 hover:text-black')}>
                 <n.icon size={17} strokeWidth={1.9} />{n.label}
-                <span className={cn('ml-auto text-[11px]', active ? 'text-white/55' : 'text-[#B9B7B0]')}>{n.hint}</span>
-              </button>
+                <span aria-hidden="true" className={cn('ml-auto text-[11px]', active ? 'text-white/55' : 'text-[#B9B7B0]')}>{n.hint}</span>
+              </a>
             );
           })}
           <div className="micro-label px-2 pb-2 pt-5 text-[#8A8A84]">Profile</div>
@@ -103,10 +103,10 @@ export default function AppShell({ view, onNav, onHome, children, onCreate }: { 
           {nav.map((n) => {
             const active = view === n.id || (n.id === 'pulse' && (view === 'asset' || view === 'nightwatch')) || (n.id === 'arena' && view === 'battle');
             return (
-              <button key={n.id} onClick={() => onNav(n.id)} aria-current={active ? 'page' : undefined} className="flex min-h-[58px] flex-col items-center justify-center gap-0.5 rounded-xl px-1">
+              <a key={n.id} href={`#/${n.id}`} onClick={(event) => { event.preventDefault(); onNav(n.id); }} aria-label={n.label} aria-current={active ? 'page' : undefined} className="flex min-h-[58px] flex-col items-center justify-center gap-0.5 rounded-xl px-1">
                 <span className={cn('flex h-8 w-11 items-center justify-center rounded-full transition-colors', active && 'bg-[#141412] text-white')}><n.icon size={17} strokeWidth={active ? 2.1 : 1.8} /></span>
-                <span className={cn('text-[10.5px] font-medium', active ? 'text-black' : 'text-[#8A8A84]')}>{n.label}</span>
-              </button>
+                <span aria-hidden="true" className={cn('text-[10.5px] font-medium', active ? 'text-black' : 'text-[#8A8A84]')}>{n.label}</span>
+              </a>
             );
           })}
         </div>

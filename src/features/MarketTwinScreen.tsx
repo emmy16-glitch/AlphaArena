@@ -42,7 +42,7 @@ export default function MarketTwinScreen({ onNav, initialPrompt }: { onNav: Nav;
 
       <div className="mt-8 rounded-[28px] border border-[#D9D7CF] bg-white p-5 md:p-8">
         <label className="micro-label text-[#8A8A84]" htmlFor="scenario-prompt">1 · What should change?</label>
-        <div className="mt-3 flex items-center gap-3 rounded-2xl border border-[#D9D7CF] bg-[#FAF9F6] px-4 py-3"><FlaskConical size={18} aria-hidden="true" /><input id="scenario-prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} className="min-w-0 flex-1 bg-transparent text-[15px] outline-none" /><button disabled={loading} aria-label="Run scenario" onClick={() => void run()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#141412] text-white"><ArrowRight size={15} /></button></div>
+        <div className="mt-3 flex items-center gap-3 rounded-2xl border border-[#D9D7CF] bg-[#FAF9F6] px-4 py-3"><FlaskConical size={18} aria-hidden="true" /><input id="scenario-prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} className="min-w-0 flex-1 bg-transparent text-[15px] outline-none" /><button disabled={loading} aria-label="Run scenario from prompt" onClick={() => void run()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#141412] text-white"><ArrowRight size={15} /></button></div>
         <div aria-live="polite">{error && <p className="mt-3 rounded-xl bg-[#FBEAEA] p-3 text-[13px] leading-5 text-[#A92E2E]">{error}</p>}</div>
 
         <div className="mt-8 grid gap-7 lg:grid-cols-[1fr_280px]">

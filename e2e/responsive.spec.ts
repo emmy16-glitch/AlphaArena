@@ -53,7 +53,8 @@ test('mobile form controls remain readable and touch-friendly', async ({ page, i
 test('browser back returns to the previous AlphaArena screen', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /Enter app/i }).click();
-  await page.getByRole('button', { name: 'Lab', exact: true }).click();
+  const navigation = page.getByRole('navigation', { name: /Main navigation|Mobile navigation/ });
+  await navigation.getByRole('link', { name: 'Lab', exact: true }).click();
   await expect(page).toHaveURL(/#\/lab$/);
   await page.goBack();
   await expect(page).toHaveURL(/#\/pulse$/);
@@ -63,6 +64,13 @@ test('browser back returns to the previous AlphaArena screen', async ({ page }) 
 test('reduced-motion preference removes long animations', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
-  const duration = await page.locator('.fade-up').first().evaluate((element) => getComputedStyle(element).animationDuration);
-  expect(duration).toBe('0.001ms');
+  const reducedMotion = await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const durationSeconds = await page.locator('.fade-up').first().evaluate((element) => {
+    const firstDuration = getComputedStyle(element).animationDuration.split(',')[0].trim();
+    return firstDuration.endsWith('ms')
+      ? Number.parseFloat(firstDuration) / 1000
+      : Number.parseFloat(firstDuration);
+  });
+  expect(reducedMotion).toBe(true);
+  expect(durationSeconds).toBeLessThanOrEqual(0.001);
 });

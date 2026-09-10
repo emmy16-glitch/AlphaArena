@@ -17,7 +17,7 @@ test('MarketTwin runs a transparent scenario with model provenance', async ({ pa
   await mockApi(page);
   await page.goto('/#/lab');
   await page.getByLabel('1 · What should change?').fill('What if Nasdaq falls 5% before the U.S. open?');
-  await page.getByRole('button', { name: 'Run scenario', exact: true }).click();
+  await page.getByRole('button', { name: 'Run scenario from prompt', exact: true }).click();
   await expect(page.getByText(/3 · nasdaq stress/i)).toBeVisible();
   await expect(page.getByText(/Model source: Vibe-Trading historical calibration/i)).toBeVisible();
   await expect(page.getByText(/not a forecast/i).first()).toBeVisible();
@@ -36,8 +36,8 @@ test('technical upstream failures are translated into human language', async ({ 
 test('paper-only guardrails are visible before entering Arena', async ({ page }) => {
   await mockApi(page);
   await page.goto('/#/arena');
-  await expect(page.getByText(/No deposit\. No wallet\. No real-money execution/i)).toBeVisible();
-  await expect(page.getByText(/Paper-only guardrail/i)).toBeVisible();
-  await expect(page.getByText(/Virtual net value/i)).toBeVisible();
-  await expect(page.getByText('$100,000', { exact: false }).first()).toBeVisible();
+  const arena = page.getByRole('main');
+  await expect(arena.getByText(/No deposit\. No wallet\. No real-money execution/i)).toBeVisible();
+  await expect(arena.getByText(/Virtual net value/i)).toBeVisible();
+  await expect(arena.getByText('$100,000', { exact: false }).first()).toBeVisible();
 });

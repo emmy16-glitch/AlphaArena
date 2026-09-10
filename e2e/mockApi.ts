@@ -80,7 +80,7 @@ function json(route: Route, data: unknown, status = 200) {
 }
 
 export async function mockApi(page: Page, options?: { pulseFailure?: boolean }) {
-  await page.route('http://localhost:8000/api/**', async (route) => {
+  await page.route('**/api/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
 
