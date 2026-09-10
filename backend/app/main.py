@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,11 +13,23 @@ from app.services.pulse import pulse_service
 from app.services.review import review_service
 from app.services.storage import store
 from app.services.traders import trader_service
+from app.services.watcher import pulse_watcher
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await pulse_watcher.start()
+    try:
+        yield
+    finally:
+        await pulse_watcher.stop()
+
 
 app = FastAPI(
     title="AlphaArena API",
-    version="0.3.0",
+    version="0.4.0",
     description="Backend for AlphaArena NightWatch, MarketTwin and virtual-capital Arena.",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -28,8 +42,8 @@ app.add_middleware(
 
 
 @app.get("/api/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok", "service": "alphaarena-api", "version": "0.3.0"}
+async def health() -> dict[str, object]:
+    return {"status": "ok", "service": "alphaarena-api", "version": "0.4.0", "watcher": pulse_watcher.status}
 
 
 @app.get("/api/integrations/status")
@@ -41,6 +55,7 @@ async def integration_status() -> dict[str, object]:
             "qwen": {"configured": settings.qwen_enabled, "model": settings.qwen_model},
             "vibeTrading": {"configured": settings.vibe_enabled, "mode": "streamable HTTP MCP sidecar"},
             "mongodb": {"configured": bool(settings.mongodb_uri), "fallback": "in-memory"},
+            "watcher": pulse_watcher.status,
             "realMoneyTrading": {"configured": False, "mode": "disabled by product design"},
         }
     }
@@ -73,10 +88,22 @@ async def market_asset(symbol: str) -> dict[str, object]:
 
 @app.get("/api/pulse")
 async def pulse() -> dict[str, object]:
+    if pulse_watcher.latest:
+        return {"data": pulse_watcher.latest}
     try:
         return {"data": await pulse_service.events()}
     except BitgetError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/pulse/status")
+async def pulse_status() -> dict[str, object]:
+    return {"data": pulse_watcher.status}
+
+
+@app.get("/api/pulse/history")
+async def pulse_history() -> dict[str, object]:
+    return {"data": await store.list("pulse_snapshots", limit=30)}
 
 
 @app.post("/api/nightwatch/analyze")
