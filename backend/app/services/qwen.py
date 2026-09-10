@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 
 from app.config import settings
+from app.services.budget import BudgetExhausted, qwen_budget
 
 
 class QwenError(RuntimeError):
@@ -34,7 +35,7 @@ def _extract_json(text: str) -> dict[str, Any]:
                 return value
         except json.JSONDecodeError:
             pass
-    raise QwenError("Qwen returned text that was not valid JSON")
+    raise QwenError("AI reasoning returned an unreadable response")
 
 
 class QwenClient:
@@ -45,21 +46,32 @@ class QwenClient:
     async def complete_json(self, *, system: str, payload: dict[str, Any]) -> dict[str, Any] | None:
         if not self.enabled:
             return None
+
         url = f"{settings.qwen_base_url.rstrip('/')}/chat/completions"
         body = {
             "model": settings.qwen_model,
             "temperature": 0.2,
-            "max_tokens": 3500,
+            "max_tokens": max(1, settings.qwen_max_output_tokens),
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": json.dumps(payload, ensure_ascii=False, default=str)},
             ],
         }
 
-        last_error = "Qwen request failed"
-        for attempt in range(3):
+        attempts = max(1, settings.qwen_max_attempts_per_request)
+        last_error = "AI reasoning is temporarily unavailable"
+        for attempt in range(attempts):
             try:
-                async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+                await qwen_budget.acquire_attempt()
+            except BudgetExhausted as exc:
+                raise QwenError(str(exc)) from exc
+
+            try:
+                timeout = httpx.Timeout(
+                    settings.qwen_timeout_seconds,
+                    connect=min(10.0, settings.qwen_timeout_seconds),
+                )
+                async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
                     response = await client.post(
                         url,
                         headers={
@@ -69,9 +81,9 @@ class QwenClient:
                         json=body,
                     )
             except httpx.HTTPError as exc:
-                last_error = f"Qwen network error: {exc}"
-                if attempt < 2:
-                    await asyncio.sleep(0.6 * (2 ** attempt))
+                last_error = "AI reasoning could not connect"
+                if attempt + 1 < attempts:
+                    await asyncio.sleep(0.5 * (2**attempt))
                     continue
                 raise QwenError(last_error) from exc
 
@@ -80,14 +92,20 @@ class QwenClient:
                     data = response.json()
                     text = data["choices"][0]["message"]["content"]
                 except (ValueError, KeyError, IndexError, TypeError) as exc:
-                    raise QwenError("Qwen response did not contain a valid chat message") from exc
+                    raise QwenError("AI reasoning returned an unreadable response") from exc
                 return _extract_json(str(text))
 
-            last_error = f"Qwen HTTP {response.status_code}: {response.text[:400]}"
-            if response.status_code in {408, 409, 429} or response.status_code >= 500:
-                if attempt < 2:
-                    await asyncio.sleep(0.6 * (2 ** attempt))
-                    continue
+            if response.status_code == 429:
+                last_error = "AI reasoning is busy right now"
+            elif response.status_code in {401, 403}:
+                last_error = "AI reasoning is not configured correctly"
+            else:
+                last_error = "AI reasoning is temporarily unavailable"
+
+            retryable = response.status_code in {408, 409, 429} or response.status_code >= 500
+            if retryable and attempt + 1 < attempts:
+                await asyncio.sleep(0.5 * (2**attempt))
+                continue
             raise QwenError(last_error)
 
         raise QwenError(last_error)
