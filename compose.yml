@@ -14,10 +14,21 @@ services:
       dockerfile: Dockerfile
     environment:
       VIBE_MCP_URL: "http://vibe:8900/mcp"
-      BITGET_SIGNAL_MCP_URL: "https://datahub.noxiaohao.com/mcp"
-      FRONTEND_ORIGINS: "http://localhost:5173"
+      VIBE_CACHE_SECONDS: "${VIBE_CACHE_SECONDS:-900}"
+      BITGET_SIGNAL_MCP_URL: "${BITGET_SIGNAL_MCP_URL:-https://datahub.noxiaohao.com/mcp}"
+      SIGNAL_CACHE_SECONDS: "${SIGNAL_CACHE_SECONDS:-300}"
+      FRONTEND_ORIGINS: "${FRONTEND_ORIGINS:-http://localhost:5173}"
       QWEN_API_KEY: "${QWEN_API_KEY:-}"
+      QWEN_MODEL: "${QWEN_MODEL:-qwen-plus}"
+      QWEN_DAILY_ATTEMPT_LIMIT: "${QWEN_DAILY_ATTEMPT_LIMIT:-12}"
+      QWEN_MAX_OUTPUT_TOKENS: "${QWEN_MAX_OUTPUT_TOKENS:-1400}"
+      QWEN_MAX_ATTEMPTS_PER_REQUEST: "${QWEN_MAX_ATTEMPTS_PER_REQUEST:-1}"
+      QWEN_TIMEOUT_SECONDS: "${QWEN_TIMEOUT_SECONDS:-35}"
       MONGODB_URI: "${MONGODB_URI:-}"
+      MONGODB_DB: "${MONGODB_DB:-alphaarena}"
+      ARENA_STARTING_CAPITAL: "${ARENA_STARTING_CAPITAL:-100000}"
+      WATCHER_ENABLED: "${WATCHER_ENABLED:-true}"
+      WATCHER_INTERVAL_SECONDS: "${WATCHER_INTERVAL_SECONDS:-60}"
     depends_on:
       - vibe
     ports:
