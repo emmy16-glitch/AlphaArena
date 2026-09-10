@@ -62,12 +62,12 @@ class NightWatchReport(BaseModel):
     verdict: Direction
     headline: str
     summary: str
-    supports: list[EvidenceItem]
-    objections: list[EvidenceItem]
-    analogues: list[HistoricalAnalogue]
-    stress_scenarios: list[StressScenario]
-    invalidation_conditions: list[str]
-    agents: list[AgentView]
+    supports: list[EvidenceItem] = Field(default_factory=list)
+    objections: list[EvidenceItem] = Field(default_factory=list)
+    analogues: list[HistoricalAnalogue] = Field(default_factory=list)
+    stress_scenarios: list[StressScenario] = Field(default_factory=list)
+    invalidation_conditions: list[str] = Field(default_factory=list)
+    agents: list[AgentView] = Field(default_factory=list)
     sources: SourceStatus
 
 
@@ -93,6 +93,8 @@ class TwinImpact(BaseModel):
     lower_pct: float
     upper_pct: float
     confidence: int
+    model: str | None = None
+    beta_to_qqq: float | None = None
 
 
 class MarketTwinResponse(BaseModel):
@@ -101,9 +103,9 @@ class MarketTwinResponse(BaseModel):
     generated_at: str
     duration: str
     shock: ParsedShock
-    impacts: list[TwinImpact]
+    impacts: list[TwinImpact] = Field(default_factory=list)
     explanation: str
-    analogues: list[HistoricalAnalogue]
+    analogues: list[HistoricalAnalogue] = Field(default_factory=list)
     model_source: str
     sources: SourceStatus
 
@@ -128,7 +130,7 @@ class BattleCreateRequest(BaseModel):
     thesis: str = Field(min_length=4, max_length=1200)
     stake: float = Field(default=10_000, gt=0, le=100_000)
     duration_hours: int = Field(default=24, ge=1, le=168)
-    opponent: str = "NightWatch"
+    opponent: str = Field(default="NightWatch", min_length=1, max_length=80)
 
 
 class BattleView(BaseModel):
@@ -145,6 +147,8 @@ class BattleView(BaseModel):
     ai_pnl_pct: float
     created_at: str
     expires_at: str
+    settled_at: str | None = None
+    settled_price: float | None = None
     status: Literal["live", "settled"]
     source: str = "bitget"
 
@@ -191,7 +195,7 @@ class BattleReview(BaseModel):
     user_result_pct: float
     ai_result_pct: float
     lesson: str
-    what_worked: list[str]
-    what_failed: list[str]
+    what_worked: list[str] = Field(default_factory=list)
+    what_failed: list[str] = Field(default_factory=list)
     next_rule: str
     source: str
