@@ -35,14 +35,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        project:
-          - desktop-chromium
-          - desktop-firefox
-          - desktop-webkit
-          - iphone-13
-          - pixel-5
-          - tablet
-          - narrow-320
+        include:
+          - project: desktop-chromium
+            browser: chromium
+          - project: desktop-firefox
+            browser: firefox
+          - project: desktop-webkit
+            browser: webkit
+          - project: iphone-13
+            browser: webkit
+          - project: pixel-5
+            browser: chromium
+          - project: tablet
+            browser: webkit
+          - project: narrow-320
+            browser: chromium
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,7 +58,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci --no-fund --no-audit
       - name: Install browser
-        run: npx playwright install --with-deps ${{ contains(matrix.project, 'firefox') && 'firefox' || contains(matrix.project, 'webkit') && 'webkit' || 'chromium' }}
+        run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Run responsive product tests
         run: npx playwright test --project=${{ matrix.project }}
       - name: Upload Playwright evidence on failure
