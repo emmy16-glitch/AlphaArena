@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
@@ -58,8 +59,6 @@ class ArenaService:
         return battle
 
     async def _refresh(self, battle: dict[str, Any], price_by_symbol: dict[str, float]) -> dict[str, Any]:
-        # Settlement is immutable. Once the first price at/after expiry is
-        # observed, later requests must not rewrite the outcome.
         if battle.get("status") == "settled" and battle.get("settled_price") is not None:
             settled = float(battle["settled_price"])
             battle["current_price"] = settled
@@ -88,9 +87,7 @@ class ArenaService:
         live_symbols = {str(b["symbol"]) for b in battles if b.get("status") != "settled"}
         price_by_symbol: dict[str, float] = {}
         if live_symbols:
-            results = await __import__("asyncio").gather(
-                *(bitget_market.get_asset(symbol) for symbol in live_symbols), return_exceptions=True
-            )
+            results = await asyncio.gather(*(bitget_market.get_asset(symbol) for symbol in live_symbols), return_exceptions=True)
             for result in results:
                 if isinstance(result, dict):
                     price_by_symbol[str(result["symbol"])] = float(result["price"])
@@ -114,14 +111,8 @@ class ArenaService:
     async def portfolio(self) -> dict[str, Any]:
         battles = await self.list_battles()
         starting = float(settings.arena_starting_capital)
-        deployed = sum(
-            float(b["stake"]) for b in battles
-            if b["status"] == "live" and b["user_side"] != "WAIT"
-        )
-        pnl_dollars = sum(
-            float(b["stake"]) * float(b["user_pnl_pct"]) / 100
-            for b in battles if b["user_side"] != "WAIT"
-        )
+        deployed = sum(float(b["stake"]) for b in battles if b["status"] == "live" and b["user_side"] != "WAIT")
+        pnl_dollars = sum(float(b["stake"]) * float(b["user_pnl_pct"]) / 100 for b in battles if b["user_side"] != "WAIT")
         net = starting + pnl_dollars
         return {
             "starting_capital": round(starting, 2),
@@ -149,12 +140,9 @@ class ArenaService:
         decisive = [b for b in battles if b["status"] == "settled"] or battles
         user_wins = sum(1 for b in decisive if float(b["user_pnl_pct"]) > float(b["ai_pnl_pct"]))
         rows: list[dict[str, Any]] = [{
-            "name": "You",
-            "type": "human",
-            "style": "Thesis-driven",
+            "name": "You", "type": "human", "style": "Thesis-driven",
             "return_pct": weighted_return(battles, "user_side"),
-            "win_rate": round(user_wins / len(decisive) * 100),
-            "battles": len(battles),
+            "win_rate": round(user_wins / len(decisive) * 100), "battles": len(battles),
         }]
 
         opponents: dict[str, list[dict[str, Any]]] = {}
@@ -164,12 +152,9 @@ class ArenaService:
             agent_decisive = [b for b in agent_battles if b["status"] == "settled"] or agent_battles
             wins = sum(1 for b in agent_decisive if float(b["ai_pnl_pct"]) >= float(b["user_pnl_pct"]))
             rows.append({
-                "name": name,
-                "type": "ai",
-                "style": "Adversarial stress-test",
+                "name": name, "type": "ai", "style": "Adversarial stress-test",
                 "return_pct": weighted_return(agent_battles, "ai_side"),
-                "win_rate": round(wins / len(agent_decisive) * 100),
-                "battles": len(agent_battles),
+                "win_rate": round(wins / len(agent_decisive) * 100), "battles": len(agent_battles),
             })
         rows.sort(key=lambda row: (float(row["return_pct"]), int(row["win_rate"])), reverse=True)
         for index, row in enumerate(rows, start=1):
