@@ -14,7 +14,8 @@ This checklist is the final gate before the hackathon branch is merged.
 ## Budget
 
 - [ ] `/api/budget/status` reports real-money trading false and background LLM calls zero.
-- [ ] Qwen user requests have one attempt by default.
+- [ ] Qwen user requests have at most three attempts and only retry transient failures.
+- [ ] Long provider quota windows fail fast instead of burning the local attempt budget.
 - [ ] Qwen maximum output and timeout are bounded.
 - [ ] Pulse watcher has no model dependency.
 - [ ] Vibe shell tools remain disabled.

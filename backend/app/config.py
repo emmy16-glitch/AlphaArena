@@ -17,10 +17,11 @@ class Settings(BaseSettings):
     ai_provider: str = "auto"
     qwen_api_key: str = ""
     qwen_base_url: str = "https://api.groq.com/openai/v1"
-    qwen_model: str = "qwen/qwen3.6-27b"
+    qwen_model: str = "qwen/qwen3.8-27b"
     qwen_daily_attempt_limit: int = 12
-    qwen_max_output_tokens: int = 1400
-    qwen_max_attempts_per_request: int = 1
+    qwen_max_output_tokens: int = 2000
+    qwen_max_attempts_per_request: int = 3
+    qwen_retry_max_wait_seconds: float = 10.0
     qwen_timeout_seconds: float = 35.0
 
     # Public Bitget Signal MCP used for macro/news context.

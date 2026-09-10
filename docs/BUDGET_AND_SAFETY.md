@@ -18,8 +18,9 @@ The current defaults are in `backend/app/config.py` and mirrored in `backend/.en
 | --- | ---: | --- |
 | `ARENA_STARTING_CAPITAL` | `100000` | Fixed paper starting balance |
 | `QWEN_DAILY_ATTEMPT_LIMIT` | `12` | Application-side fuse against accidental call loops |
-| `QWEN_MAX_ATTEMPTS_PER_REQUEST` | `1` | No hidden model retry multiplication |
-| `QWEN_MAX_OUTPUT_TOKENS` | `1400` | Bound response size/cost |
+| `QWEN_MAX_ATTEMPTS_PER_REQUEST` | `3` | Bound transient-provider retries |
+| `QWEN_MAX_OUTPUT_TOKENS` | `2000` | Leave room for high reasoning while bounding response size/cost |
+| `QWEN_RETRY_MAX_WAIT_SECONDS` | `10` | Do not hold requests open for long quota resets |
 | `QWEN_TIMEOUT_SECONDS` | `35` | Bound user wait time and hanging requests |
 | `VIBE_CACHE_SECONDS` | `900` | Reuse expensive historical research for 15 minutes |
 | `SIGNAL_CACHE_SECONDS` | `300` | Reuse macro/news context for 5 minutes |
@@ -34,7 +35,7 @@ The current implementation stores that counter in memory and reports its account
 
 If the fuse is exhausted, NightWatch, MarketTwin and post-battle review keep their deterministic fallback paths. The user does not lose access to the paper product.
 
-The current inference path is Groq-hosted Qwen 3.6 27B. AlphaArena requests JSON mode with hidden reasoning for structured production calls, caps each completion, and never exposes model reasoning fields to users. Provider failures are stored as small diagnostic categories without prompts, credentials, authorization headers or full upstream response bodies.
+The current inference path is Groq-hosted Qwen 3.8 27B at its highest supported Groq reasoning effort (`high`, mapped by Groq to the model's native `xhigh` mode). AlphaArena requests JSON mode with hidden chain-of-thought for structured production calls, caps each completion, and never exposes model reasoning fields to users. Transient limits honor Groq's short `Retry-After` values; a long quota reset fails fast rather than exhausting the local attempt budget. Provider failures are stored as small diagnostic categories without prompts, credentials, authorization headers or full upstream response bodies.
 
 ## Paper portfolio invariants
 

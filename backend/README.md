@@ -10,7 +10,7 @@ The backend owns the rules that should not depend on UI behavior:
 - deterministic market/risk/scenario calculations,
 - Vibe-Trading historical research normalization,
 - optional Bitget Signal context,
-- optional budget-fused Qwen 3.6 synthesis through Groq,
+- optional budget-fused Qwen 3.8 high-reasoning synthesis through Groq,
 - virtual portfolio accounting,
 - immutable paper-battle settlement,
 - post-battle review,
@@ -72,8 +72,9 @@ Defaults:
 
 ```text
 QWEN_DAILY_ATTEMPT_LIMIT=12
-QWEN_MAX_ATTEMPTS_PER_REQUEST=1
-QWEN_MAX_OUTPUT_TOKENS=1400
+QWEN_MAX_ATTEMPTS_PER_REQUEST=3
+QWEN_MAX_OUTPUT_TOKENS=2000
+QWEN_RETRY_MAX_WAIT_SECONDS=10
 QWEN_TIMEOUT_SECONDS=35
 VIBE_CACHE_SECONDS=900
 SIGNAL_CACHE_SECONDS=300
@@ -86,10 +87,10 @@ The current hackathon provider settings are:
 ```text
 AI_PROVIDER=groq
 QWEN_BASE_URL=https://api.groq.com/openai/v1
-QWEN_MODEL=qwen/qwen3.6-27b
+QWEN_MODEL=qwen/qwen3.8-27b
 ```
 
-The `QWEN_*` names identify the model family and remain backward-compatible. Diagnostics separately report `provider: groq`; they never expose credentials. Structured calls use JSON mode and hidden reasoning. To make exactly one optional live smoke call from the repository root, run `PYTHONPATH=backend backend/.venv/bin/python backend/scripts/check_ai_provider.py`.
+The `QWEN_*` names identify the model family and remain backward-compatible. Diagnostics separately report `provider: groq`; they never expose credentials. Structured calls use JSON mode, hidden chain-of-thought, and Qwen 3.8's highest supported Groq reasoning effort (`high`). Transient failures retry at most three times and respect Groq's `Retry-After` header up to ten seconds; longer quota windows fail fast into the deterministic fallback. To make one optional live smoke request from the repository root, run `PYTHONPATH=backend backend/.venv/bin/python backend/scripts/check_ai_provider.py`.
 
 The model counter is an AlphaArena per-process safety fuse, not provider billing information. `GET /api/budget/status` exposes the current application-side state.
 

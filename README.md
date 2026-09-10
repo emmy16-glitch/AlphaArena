@@ -26,7 +26,7 @@ AlphaArena is deliberately not another “AI says BUY” dashboard. It separates
 - **Vibe-Trading** supplies historical U.S.-equity research and mechanically derived calibration.
 - **Bitget Signal** supplies macro and cross-asset context when available.
 - **Deterministic AlphaArena code** calculates market metrics, stress impacts, uncertainty and paper PnL.
-- **Qwen 3.6 27B**, served through Groq for a free hackathon development path, is the optional reasoning/synthesis layer. It is not allowed to overwrite deterministic scenario numbers or invent missing evidence.
+- **Qwen 3.8 27B**, served through Groq for a free hackathon development path, is the optional high-reasoning synthesis layer. It is not allowed to overwrite deterministic scenario numbers or invent missing evidence.
 - **Arena** uses a fixed paper balance. There is no wallet connection, deposit, withdrawal or exchange order endpoint in the product.
 
 ## Bitget implementation
@@ -101,7 +101,7 @@ React + Vite UI
 FastAPI application
   │       │        │        │
   │       │        │        └── optional MongoDB persistence
-  │       │        └─────────── Qwen 3.6 reasoning via Groq (user-triggered, budget fused)
+  │       │        └─────────── Qwen 3.8 high reasoning via Groq (user-triggered, budget fused)
   │       └──────────────────── Bitget Signal MCP context
   ├──────────────────────────── Vibe-Trading MCP sidecar (research only)
   └──────────────────────────── Bitget UTA v3 Reality market data

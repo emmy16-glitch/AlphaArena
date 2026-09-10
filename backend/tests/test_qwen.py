@@ -16,10 +16,11 @@ async def configured_qwen(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "ai_provider", "groq")
     monkeypatch.setattr(settings, "qwen_api_key", "test-secret-never-log")
     monkeypatch.setattr(settings, "qwen_base_url", "https://api.groq.com/openai/v1")
-    monkeypatch.setattr(settings, "qwen_model", "qwen/qwen3.6-27b")
+    monkeypatch.setattr(settings, "qwen_model", "qwen/qwen3.8-27b")
     monkeypatch.setattr(settings, "qwen_daily_attempt_limit", 100)
     monkeypatch.setattr(settings, "qwen_max_attempts_per_request", 1)
-    monkeypatch.setattr(settings, "qwen_max_output_tokens", 1400)
+    monkeypatch.setattr(settings, "qwen_max_output_tokens", 2000)
+    monkeypatch.setattr(settings, "qwen_retry_max_wait_seconds", 10.0)
     monkeypatch.setattr(settings, "qwen_timeout_seconds", 1.0)
     await qwen_budget.reset_for_tests()
 
@@ -96,6 +97,45 @@ async def test_rate_limit_is_classified() -> None:
 
 
 @pytest.mark.asyncio
+async def test_rate_limit_retries_after_provider_delay(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "qwen_max_attempts_per_request", 2)
+    delays: list[float] = []
+    monkeypatch.setattr("app.services.qwen.asyncio.sleep", lambda delay: _record_delay(delays, delay))
+    calls = 0
+
+    def throttled_once(_: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(429, headers={"retry-after": "1.25"})
+        return _response('{"ok":true}')
+
+    assert await _complete(_client(throttled_once)) == {"ok": True}
+    assert calls == 2
+    assert delays == [1.25]
+
+
+async def _record_delay(delays: list[float], delay: float) -> None:
+    delays.append(delay)
+
+
+@pytest.mark.asyncio
+async def test_long_rate_limit_does_not_burn_retries(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "qwen_max_attempts_per_request", 3)
+    calls = 0
+
+    def daily_quota(_: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(429, headers={"retry-after": "3600"})
+
+    with pytest.raises(QwenError) as captured:
+        await _complete(_client(daily_quota))
+    assert captured.value.code == "rate_limit"
+    assert calls == 1
+
+
+@pytest.mark.asyncio
 async def test_invalid_model_is_classified() -> None:
     client = _client(lambda _: httpx.Response(400, json={"error": {"code": "model_not_found"}}))
     with pytest.raises(QwenError) as captured:
@@ -167,7 +207,7 @@ async def test_api_key_never_appears_in_exception_strings() -> None:
 def test_diagnostics_identify_provider_without_credentials() -> None:
     diagnostic = QwenClient().diagnostics()
     assert diagnostic["provider"] == "groq"
-    assert diagnostic["model"] == "qwen/qwen3.6-27b"
+    assert diagnostic["model"] == "qwen/qwen3.8-27b"
     assert settings.qwen_api_key not in json.dumps(diagnostic)
 
 
@@ -196,8 +236,25 @@ async def test_groq_request_uses_json_mode_and_hidden_reasoning() -> None:
     await _complete(_client(inspect_request))
     assert captured_body["response_format"] == {"type": "json_object"}
     assert captured_body["reasoning_format"] == "hidden"
-    assert captured_body["max_completion_tokens"] == 1400
+    assert captured_body["reasoning_effort"] == "high"
+    assert captured_body["temperature"] == 0.6
+    assert captured_body["top_p"] == 0.95
+    assert captured_body["max_completion_tokens"] == 2000
+    assert captured_body["messages"][0]["role"] == "user"
     assert "max_tokens" not in captured_body
+
+
+@pytest.mark.asyncio
+async def test_qwen_36_uses_its_highest_supported_reasoning(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "qwen_model", "qwen/qwen3.6-27b")
+    captured_body: dict[str, object] = {}
+
+    def inspect_request(request: httpx.Request) -> httpx.Response:
+        captured_body.update(json.loads(request.content))
+        return _response('{"ok":true}')
+
+    await _complete(_client(inspect_request))
+    assert captured_body["reasoning_effort"] == "default"
 
 
 @pytest.mark.asyncio
@@ -211,6 +268,7 @@ async def test_non_groq_provider_omits_groq_reasoning_parameter(monkeypatch: pyt
 
     await _complete(_client(inspect_request))
     assert captured_body["response_format"] == {"type": "json_object"}
-    assert captured_body["max_tokens"] == 1400
+    assert captured_body["max_tokens"] == 2000
     assert "reasoning_format" not in captured_body
+    assert "reasoning_effort" not in captured_body
     assert "max_completion_tokens" not in captured_body

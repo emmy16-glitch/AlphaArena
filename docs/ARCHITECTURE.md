@@ -16,7 +16,7 @@ AlphaArena is intentionally split into a small interactive frontend, a determini
 │ Bitget adapter ───────────────► Reality public market data     │
 │ Vibe adapter ─────────────────► research-only MCP sidecar      │
 │ Signal adapter ────────────────► Bitget Signal MCP context     │
-│ Qwen client ───────────────────► Groq-hosted Qwen 3.6 synthesis│
+│ Qwen client ───────────────────► Groq-hosted Qwen 3.8 synthesis│
 │                                                               │
 │ deterministic analytics · budget fuse · paper ledger          │
 │ immutable settlement · Pulse watcher · friendly problem API   │
@@ -43,7 +43,7 @@ Core calculations live in normal application code:
 
 Qwen receives those facts only after they exist. Its job is to challenge and explain, not manufacture the numbers the interface later treats as facts.
 
-The hackathon configuration serves the Qwen 3.6 27B model family through Groq. Structured calls use JSON mode with hidden reasoning, so chain-of-thought does not enter application content. The transport remains OpenAI-compatible and provider-aware rather than claiming that Alibaba Cloud serves the current deployment.
+The hackathon configuration serves Qwen 3.8 27B through Groq with `reasoning_effort=high`, the strongest effort Groq currently accepts for that model. Structured calls use JSON mode with hidden reasoning, so chain-of-thought does not enter application content. Short rate limits honor Groq's `Retry-After` header within strict retry and wait caps. The transport remains OpenAI-compatible and provider-aware rather than claiming that Alibaba Cloud serves the current deployment.
 
 ## Frontend
 
