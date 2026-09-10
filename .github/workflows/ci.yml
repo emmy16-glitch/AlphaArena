@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: 24
       - name: Install frontend dependencies
-        run: npm install --no-fund --no-audit
+        run: npm ci --no-fund --no-audit
       - name: TypeScript strict check
         run: npm run typecheck
       - name: Production build
@@ -49,7 +49,7 @@ jobs:
         with:
           node-version: 24
       - name: Install frontend dependencies
-        run: npm install --no-fund --no-audit
+        run: npm ci --no-fund --no-audit
       - name: Install browser
         run: npx playwright install --with-deps ${{ contains(matrix.project, 'firefox') && 'firefox' || contains(matrix.project, 'webkit') && 'webkit' || 'chromium' }}
       - name: Run responsive product tests
