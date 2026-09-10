@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import AppShell from './components/AppShell';
-import { AssetDetail, CreateTrader, Landing } from './components/Screens';
+import { AssetDetail, Landing } from './components/Screens';
 import {
   ConnectedArena,
   ConnectedBattle,
@@ -10,6 +10,7 @@ import {
   ConnectedPortfolio,
   ConnectedPulse,
 } from './components/ConnectedScreens';
+import ConnectedTrader from './components/ConnectedTrader';
 import type { Direction } from './product/api';
 
 type Route = { view: string; payload?: Record<string, unknown> };
@@ -37,7 +38,7 @@ export default function App() {
       {route.view === 'battle' && <ConnectedBattle onNav={nav} battleId={battleId} />}
       {route.view === 'leaderboard' && <ConnectedLeaderboard />}
       {route.view === 'portfolio' && <ConnectedPortfolio onNav={nav} />}
-      {route.view === 'create' && <CreateTrader onNav={nav} />}
+      {route.view === 'create' && <ConnectedTrader onNav={nav} />}
     </AppShell>
   );
 }
