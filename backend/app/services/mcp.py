@@ -25,6 +25,7 @@ class MCPHttpClient:
         self.url = url
         self.name = name
         self.session_id: str | None = None
+        self.protocol_version: str | None = None
         self.initialized = False
         self._next_id = 1
 
@@ -92,6 +93,8 @@ class MCPHttpClient:
         }
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
+        if self.protocol_version:
+            headers["MCP-Protocol-Version"] = self.protocol_version
         async with httpx.AsyncClient(timeout=settings.mcp_timeout_seconds, follow_redirects=True) as client:
             response = await client.post(self.url, headers=headers, json=payload)
         if response.status_code >= 400:
@@ -120,6 +123,11 @@ class MCPHttpClient:
                 "clientInfo": {"name": "AlphaArena", "version": "0.4.0"},
             },
         })
+        result = data.get("result") or {}
+        negotiated_version = result.get("protocolVersion")
+        if isinstance(negotiated_version, str) and negotiated_version:
+            self.protocol_version = negotiated_version
+
         if data and data.get("id") not in {None, request_id}:
             raise MCPError(f"{self.name} returned a mismatched initialize response")
         await self._post({
