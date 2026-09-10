@@ -26,7 +26,7 @@ class AgentView(BaseModel):
     stance: Literal["support", "oppose", "neutral"]
     confidence: int = Field(ge=0, le=100)
     summary: str
-    evidence: list[str] = []
+    evidence: list[str] = Field(default_factory=list)
 
 
 class StressScenario(BaseModel):
@@ -73,7 +73,7 @@ class NightWatchReport(BaseModel):
 
 class MarketTwinRequest(BaseModel):
     prompt: str = Field(min_length=3, max_length=1000)
-    symbols: list[str] = ["rNVDA", "rTSLA", "rAAPL", "rQQQ"]
+    symbols: list[str] = Field(default_factory=lambda: ["rNVDA", "rTSLA", "rAAPL", "rQQQ"])
     severity: int = Field(default=60, ge=10, le=100)
     duration: str = "24H"
 
@@ -117,7 +117,7 @@ class PulseEvent(BaseModel):
     score: int = Field(ge=0, le=100)
     price: float | None = None
     change_pct: float | None = None
-    tags: list[str] = []
+    tags: list[str] = Field(default_factory=list)
     detected_at: str
 
 
@@ -167,3 +167,31 @@ class LeaderRow(BaseModel):
     return_pct: float
     win_rate: int
     battles: int
+
+
+class TraderProfileRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=60)
+    style: Literal["Event-driven", "Momentum", "Contrarian", "Risk-first"] = "Event-driven"
+    risk_appetite: int = Field(default=50, ge=10, le=90)
+    holding_period: Literal["1H", "6H", "24H", "7D", "30D"] = "24H"
+    assets: list[str] = Field(default_factory=lambda: ["rNVDA", "rTSLA", "rAAPL"])
+
+
+class TraderProfile(TraderProfileRequest):
+    id: str
+    created_at: str
+    updated_at: str
+    mode: Literal["virtual-only"] = "virtual-only"
+
+
+class BattleReview(BaseModel):
+    battle_id: str
+    generated_at: str
+    winner: Literal["user", "ai", "draw"]
+    user_result_pct: float
+    ai_result_pct: float
+    lesson: str
+    what_worked: list[str]
+    what_failed: list[str]
+    next_rule: str
+    source: str
