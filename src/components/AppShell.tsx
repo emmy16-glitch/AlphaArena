@@ -1,18 +1,49 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Activity, FlaskConical, Swords, Wallet, Trophy, Plus, Search, Bell, ChevronLeft } from 'lucide-react';
 import { Logo } from './ui';
 import { cn } from '../utils/cn';
+import { PortfolioSummary, productApi } from '../product/api';
 
 const nav = [
   { id: 'pulse', label: 'Pulse', icon: Activity, hint: 'Watch' },
   { id: 'lab', label: 'Lab', icon: FlaskConical, hint: 'Simulate' },
   { id: 'arena', label: 'Arena', icon: Swords, hint: 'Battle' },
-  { id: 'portfolio', label: 'Portfolio', icon: Wallet, hint: '$112k' },
-  { id: 'leaderboard', label: 'Ranks', icon: Trophy, hint: 'Top' },
+  { id: 'portfolio', label: 'Portfolio', icon: Wallet, hint: 'Virtual' },
+  { id: 'leaderboard', label: 'Ranks', icon: Trophy, hint: 'Results' },
 ];
+
+function compactMoney(value: number) {
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}m`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}k`;
+  return `$${value.toFixed(0)}`;
+}
 
 export default function AppShell({ view, onNav, onHome, children, onCreate }: { view: string; onNav: (v: string) => void; onHome: () => void; children: ReactNode; onCreate: () => void }) {
   const inSub = ['asset', 'nightwatch', 'battle', 'create'].includes(view);
+  const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const summary = await productApi.portfolio();
+        if (active) setPortfolio(summary);
+      } catch {
+        // Keep the shell truthful: show the $100k starting balance until the
+        // backend is available instead of inventing performance.
+      }
+    };
+    void load();
+    const timer = window.setInterval(() => void load(), 30_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+
+  const net = portfolio?.net_value ?? 100_000;
+  const free = portfolio?.free_capital ?? 100_000;
+  const deployed = portfolio?.deployed_capital ?? 0;
+  const returnPct = portfolio?.return_pct ?? 0;
+  const deployedShare = net > 0 ? Math.min(100, Math.max(0, (deployed / net) * 100)) : 0;
+
   return (
     <div className="min-h-screen bg-[#FAF9F6]">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] flex-col border-r border-[#E7E5DE] bg-[#FAF9F6]/95 backdrop-blur-xl lg:flex">
@@ -24,13 +55,13 @@ export default function AppShell({ view, onNav, onHome, children, onCreate }: { 
           <div className="micro-label px-2 pb-2 pt-5 text-[#8A8A84]">Create</div>
           <button onClick={onCreate} className={cn('flex w-full items-center gap-3 rounded-xl border border-dashed px-3 py-2.5 text-[14px] font-medium transition-all', view === 'create' ? 'border-[#141412] bg-[#141412] text-white' : 'border-[#D9D7CF] text-[#55554F] hover:border-[#141412] hover:text-black')}><Plus size={17} /> New trader</button>
         </nav>
-        <div className="p-3"><div className="rounded-2xl border border-[#E7E5DE] bg-white p-4"><div className="micro-label text-[#8A8A84]">Virtual capital</div><div className="mono-num mt-1 text-[22px] font-semibold">$112,408</div><div className="mono-num mt-0.5 text-[12px] font-medium text-[#0D7A4F]">+12.4% all-time</div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#F4F3EF]"><div className="h-full w-[68%] rounded-full bg-[#141412]" /></div><div className="mt-2 text-[11.5px] text-[#8A8A84]">$32k deployed · $80k free</div></div></div>
+        <div className="p-3"><div className="rounded-2xl border border-[#E7E5DE] bg-white p-4"><div className="micro-label text-[#8A8A84]">Virtual capital</div><div className="mono-num mt-1 text-[22px] font-semibold">{compactMoney(net)}</div><div className={cn('mono-num mt-0.5 text-[12px] font-medium', returnPct >= 0 ? 'text-[#0D7A4F]' : 'text-[#C93A3A]')}>{returnPct >= 0 ? '+' : ''}{returnPct.toFixed(2)}% marked</div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#F4F3EF]"><div className="h-full rounded-full bg-[#141412]" style={{ width: `${deployedShare}%` }} /></div><div className="mt-2 text-[11.5px] text-[#8A8A84]">{compactMoney(deployed)} deployed · {compactMoney(free)} free</div></div></div>
       </aside>
 
       <header className="sticky top-0 z-40 border-b border-[#E7E5DE] bg-[#FAF9F6]/90 backdrop-blur-xl lg:ml-[232px]">
         <div className="flex h-[60px] items-center justify-between px-4 md:px-8">
           <div className="flex items-center gap-3"><button onClick={onHome} className="lg:hidden"><Logo /></button>{inSub && <button onClick={() => onNav(view === 'battle' ? 'arena' : 'pulse')} className="flex h-8 w-8 items-center justify-center rounded-full border border-[#E7E5DE] bg-white lg:hidden"><ChevronLeft size={16} /></button>}<div className="hidden items-center gap-2 rounded-full border border-[#E7E5DE] bg-white px-3 py-1.5 lg:flex"><span className="tick-dot h-1.5 w-1.5 rounded-full bg-[#0D7A4F]" /><span className="mono-num text-[11.5px] font-medium text-[#55554F]">24/7 market lab</span></div></div>
-          <div className="flex items-center gap-2"><button className="relative flex h-9 w-9 items-center justify-center rounded-full border border-[#E7E5DE] bg-white transition-all hover:border-[#141412]"><Bell size={16} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#C93A3A]" /></button><button onClick={() => onNav('portfolio')} className="flex items-center gap-2.5 rounded-full border border-[#E7E5DE] bg-white py-1 pl-1 pr-3.5 transition-all hover:border-[#141412]"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#141412] text-[11px] font-semibold text-white">YO</span><span className="mono-num hidden text-[12.5px] font-semibold sm:inline">$112.4k</span></button></div>
+          <div className="flex items-center gap-2"><button className="relative flex h-9 w-9 items-center justify-center rounded-full border border-[#E7E5DE] bg-white transition-all hover:border-[#141412]"><Bell size={16} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#C93A3A]" /></button><button onClick={() => onNav('portfolio')} className="flex items-center gap-2.5 rounded-full border border-[#E7E5DE] bg-white py-1 pl-1 pr-3.5 transition-all hover:border-[#141412]"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#141412] text-[11px] font-semibold text-white">YO</span><span className="mono-num hidden text-[12.5px] font-semibold sm:inline">{compactMoney(net)}</span></button></div>
         </div>
       </header>
 
