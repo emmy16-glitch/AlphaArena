@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AppShell from './components/AppShell';
-import { AssetDetail, Landing } from './components/Screens';
+import ConnectedAsset from './components/ConnectedAsset';
+import { Landing } from './components/Screens';
 import {
   ConnectedArena,
   ConnectedBattle,
@@ -31,7 +32,7 @@ export default function App() {
   return (
     <AppShell view={route.view} onNav={(view) => nav(view)} onHome={() => nav('landing')} onCreate={() => nav('create')}>
       {route.view === 'pulse' && <ConnectedPulse onNav={nav} />}
-      {route.view === 'asset' && <AssetDetail symbol={symbol} onNav={nav} />}
+      {route.view === 'asset' && <ConnectedAsset symbol={symbol} onNav={nav} />}
       {route.view === 'nightwatch' && <ConnectedNightWatch symbol={symbol} onNav={nav} />}
       {route.view === 'lab' && <ConnectedLab onNav={nav} initialPrompt={prompt} />}
       {route.view === 'arena' && <ConnectedArena onNav={nav} initialSymbol={symbol} initialThesis={thesis} initialAiSide={aiSide} />}
