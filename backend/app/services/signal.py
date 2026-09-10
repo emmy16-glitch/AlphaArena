@@ -30,17 +30,17 @@ class BitgetSignalResearch:
             )
             names = sorted(str(tool.get("name")) for tool in tools if tool.get("name"))
             return {"connected": bool(names), "tool_count": len(names)}
-        except Exception as exc:
-            return {"connected": False, "reason": str(exc)[:300]}
+        except Exception:
+            return {"connected": False, "reason": "Bitget Signal research is unavailable"}
 
     async def snapshot(self, display_symbol: str) -> dict[str, Any]:
-        """Collect public macro/news context through official Bitget Signal MCP.
+        """Collect public macro/news context through the Bitget Signal MCP.
 
-        Bitget Signal is used for macro/cross-asset context. Company-specific
-        fundamentals and equity history remain Vibe-Trading's responsibility.
+        Signal is contextual evidence only. Company-specific history and
+        fundamentals remain Vibe-Trading's responsibility.
         """
         if not settings.bitget_signal_mcp_url:
-            return {"connected": False, "evidence": {}, "errors": ["Signal MCP URL not configured"]}
+            return {"connected": False, "evidence": {}, "errors": ["Signal research is not configured"]}
 
         cached = self._cache.get(display_symbol)
         if cached and cached.expires_at > time.time():
@@ -67,8 +67,8 @@ class BitgetSignalResearch:
         ]
         try:
             available = await client.has_tools({name for name, _ in calls})
-        except Exception as exc:
-            return {"connected": False, "evidence": {}, "errors": [str(exc)[:500]]}
+        except Exception:
+            return {"connected": False, "evidence": {}, "errors": ["Signal research is unavailable"]}
 
         evidence: dict[str, Any] = {}
         errors: list[str] = []
@@ -80,11 +80,14 @@ class BitgetSignalResearch:
                 key = name if name not in evidence else f"{name}_{index}"
                 text = value if isinstance(value, str) else str(value)
                 evidence[key] = text[:3500] + ("…" if len(text) > 3500 else "")
-            except Exception as exc:
-                errors.append(f"{name}: {str(exc)[:400]}")
+            except Exception:
+                errors.append(f"{name}: temporarily unavailable")
         result = {"connected": bool(evidence), "evidence": evidence, "errors": errors}
         if result["connected"]:
-            self._cache[display_symbol] = _SignalCache(result, time.time() + 60)
+            self._cache[display_symbol] = _SignalCache(
+                result,
+                time.time() + max(1, settings.signal_cache_seconds),
+            )
         return result
 
 
