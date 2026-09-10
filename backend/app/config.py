@@ -6,28 +6,31 @@ class Settings(BaseSettings):
     frontend_origins: str = "http://localhost:5173"
     market_cache_seconds: int = 10
 
-    # Cheap market watcher. It never calls the LLM on a timer; it only derives
-    # Pulse events from public market metrics. Deep analysis is user-triggered.
+    # Pulse only derives public market metrics. It must never spend LLM credits.
     watcher_enabled: bool = True
     watcher_interval_seconds: int = 60
 
-    # Alibaba Cloud Model Studio / Qwen. The shared Singapore DashScope
-    # endpoint remains valid; a workspace-dedicated URL can be supplied later.
+    # Alibaba Cloud Model Studio / Qwen. These are application-side safety
+    # fuses, not a statement of the provider's billing/quota policy.
     qwen_api_key: str = ""
     qwen_base_url: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
     qwen_model: str = "qwen-plus"
+    qwen_daily_attempt_limit: int = 12
+    qwen_max_output_tokens: int = 1400
+    qwen_max_attempts_per_request: int = 1
+    qwen_timeout_seconds: float = 35.0
 
-    # Official bitget-signal installer currently points clients to this public
-    # MCP endpoint. No Bitget credentials are sent to it.
+    # Public Bitget Signal MCP used for macro/news context.
     bitget_signal_mcp_url: str = "https://datahub.noxiaohao.com/mcp"
+    signal_cache_seconds: int = 300
 
-    # Run Vibe-Trading as a Streamable HTTP MCP sidecar, for example:
-    # python agent/mcp_server.py --transport http --host 0.0.0.0 --port 8001
+    # Vibe-Trading is a research-only MCP sidecar. Shell tools stay disabled in
+    # the sidecar container. A longer cache protects latency and free resources.
     vibe_mcp_url: str = ""
+    vibe_cache_seconds: int = 900
     mcp_timeout_seconds: float = 20.0
 
-    # Optional persistence. Without this, Arena uses an in-memory store so the
-    # project remains runnable before MongoDB Atlas is configured.
+    # Optional persistence. The Arena remains paper-only regardless of storage.
     mongodb_uri: str = ""
     mongodb_db: str = "alphaarena"
     arena_starting_capital: float = 100_000.0
