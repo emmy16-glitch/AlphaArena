@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import time
+from dataclasses import dataclass
 from typing import Any
 
 from app.config import settings
@@ -7,16 +10,41 @@ from app.services.mcp import MCPHttpClient
 from app.services.vibe import UNDERLYING
 
 
-class BitgetSignalResearch:
-    async def snapshot(self, display_symbol: str) -> dict[str, Any]:
-        """Collect public macro/news context through Bitget Signal's MCP.
+@dataclass
+class _SignalCache:
+    value: dict[str, Any]
+    expires_at: float
 
-        bitget-signal is primarily crypto/macro oriented, so AlphaArena uses it
-        as cross-asset context rather than pretending it provides equity
-        fundamentals. Company-specific equity research stays with Vibe-Trading.
+
+class BitgetSignalResearch:
+    def __init__(self) -> None:
+        self._cache: dict[str, _SignalCache] = {}
+
+    async def health(self) -> dict[str, Any]:
+        if not settings.bitget_signal_mcp_url:
+            return {"connected": False, "reason": "Signal MCP URL not configured"}
+        try:
+            tools = await asyncio.wait_for(
+                MCPHttpClient(settings.bitget_signal_mcp_url, "Bitget Signal").list_tools(),
+                timeout=settings.mcp_timeout_seconds + 3,
+            )
+            names = sorted(str(tool.get("name")) for tool in tools if tool.get("name"))
+            return {"connected": bool(names), "tool_count": len(names)}
+        except Exception as exc:
+            return {"connected": False, "reason": str(exc)[:300]}
+
+    async def snapshot(self, display_symbol: str) -> dict[str, Any]:
+        """Collect public macro/news context through official Bitget Signal MCP.
+
+        Bitget Signal is used for macro/cross-asset context. Company-specific
+        fundamentals and equity history remain Vibe-Trading's responsibility.
         """
         if not settings.bitget_signal_mcp_url:
             return {"connected": False, "evidence": {}, "errors": ["Signal MCP URL not configured"]}
+
+        cached = self._cache.get(display_symbol)
+        if cached and cached.expires_at > time.time():
+            return cached.value
 
         ticker = UNDERLYING.get(display_symbol, display_symbol.lstrip("r").upper())
         topic = {
@@ -37,17 +65,27 @@ class BitgetSignalResearch:
             ("news_feed", {"action": "latest", "feeds": "cnbc,bbc_world,guardian", "keyword": topic, "limit": 6}),
             ("tradfi_news", {"action": "news", "limit": 6}),
         ]
+        try:
+            available = await client.has_tools({name for name, _ in calls})
+        except Exception as exc:
+            return {"connected": False, "evidence": {}, "errors": [str(exc)[:500]]}
+
         evidence: dict[str, Any] = {}
         errors: list[str] = []
         for index, (name, arguments) in enumerate(calls):
+            if name not in available:
+                continue
             try:
                 value = await client.call_tool(name, arguments)
                 key = name if name not in evidence else f"{name}_{index}"
                 text = value if isinstance(value, str) else str(value)
                 evidence[key] = text[:3500] + ("…" if len(text) > 3500 else "")
             except Exception as exc:
-                errors.append(f"{name}: {exc}")
-        return {"connected": bool(evidence), "evidence": evidence, "errors": errors}
+                errors.append(f"{name}: {str(exc)[:400]}")
+        result = {"connected": bool(evidence), "evidence": evidence, "errors": errors}
+        if result["connected"]:
+            self._cache[display_symbol] = _SignalCache(result, time.time() + 60)
+        return result
 
 
 bitget_signal = BitgetSignalResearch()
