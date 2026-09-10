@@ -41,6 +41,16 @@ export type PortfolioSummary = {
 
 export type LeaderRow = { rank: number; name: string; type: 'human'|'ai'; style: string; return_pct: number; win_rate: number; battles: number };
 
+export type TraderProfile = {
+  id: string; name: string; style: 'Event-driven'|'Momentum'|'Contrarian'|'Risk-first'; risk_appetite: number;
+  holding_period: '1H'|'6H'|'24H'|'7D'|'30D'; assets: string[]; created_at: string; updated_at: string; mode: 'virtual-only';
+};
+
+export type BattleReview = {
+  battle_id: string; generated_at: string; winner: 'user'|'ai'|'draw'; user_result_pct: number; ai_result_pct: number;
+  lesson: string; what_worked: string[]; what_failed: string[]; next_rule: string; source: string;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
@@ -59,13 +69,19 @@ export const productApi = {
   pulse: () => request<PulseEvent[]>('/api/pulse'),
   nightwatch: (body: { symbol: string; direction: Direction; thesis: string; risk_pct?: number; holding_period?: string }) =>
     request<NightWatchReport>('/api/nightwatch/analyze', { method: 'POST', body: JSON.stringify(body) }),
+  nightwatchHistory: () => request<NightWatchReport[]>('/api/nightwatch/history'),
   simulate: (body: { prompt: string; symbols: string[]; severity: number; duration: string }) =>
     request<TwinResponse>('/api/twin/simulate', { method: 'POST', body: JSON.stringify(body) }),
+  scenarioHistory: () => request<TwinResponse[]>('/api/twin/history'),
   createBattle: (body: { symbol: string; user_side: Direction; ai_side: Direction; thesis: string; stake: number; duration_hours: number; opponent?: string }) =>
     request<BattleView>('/api/arena/battles', { method: 'POST', body: JSON.stringify(body) }),
   battles: () => request<BattleView[]>('/api/arena/battles'),
   battle: (id: string) => request<BattleView>(`/api/arena/battles/${encodeURIComponent(id)}`),
+  reviewBattle: (id: string) => request<BattleReview>(`/api/arena/battles/${encodeURIComponent(id)}/review`, { method: 'POST' }),
   portfolio: () => request<PortfolioSummary>('/api/arena/portfolio'),
   leaderboard: () => request<LeaderRow[]>('/api/arena/leaderboard'),
+  createTrader: (body: { name: string; style: TraderProfile['style']; risk_appetite: number; holding_period: TraderProfile['holding_period']; assets: string[] }) =>
+    request<TraderProfile>('/api/traders', { method: 'POST', body: JSON.stringify(body) }),
+  traders: () => request<TraderProfile[]>('/api/traders'),
   integrations: () => request<Record<string, { configured: boolean; mode?: string; model?: string; fallback?: string }>>('/api/integrations/status'),
 };
