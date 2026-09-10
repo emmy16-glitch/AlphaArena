@@ -1,19 +1,118 @@
 # AlphaArena backend
 
-FastAPI service for the real AlphaArena integrations.
+FastAPI service for AlphaArena's evidence, stress-testing and paper-battle loop.
 
-## Current live integration
+## Responsibilities
 
-The first production slice uses Bitget UTA v3 public market data for Reality/tokenized U.S. stock pairs. The frontend polls this API and merges live price/candle fields into the Version 4 visual system.
+The backend owns the rules that should not depend on UI behavior:
 
-## Local development
+- Bitget UTA v3 Reality market normalization,
+- deterministic market/risk/scenario calculations,
+- Vibe-Trading historical research normalization,
+- optional Bitget Signal context,
+- optional budget-fused Qwen synthesis,
+- virtual portfolio accounting,
+- immutable paper-battle settlement,
+- post-battle review,
+- lightweight background Pulse detection,
+- integration/budget diagnostics,
+- human-readable API error contracts.
+
+It intentionally owns **no real-money exchange order route**.
+
+## Local API development
 
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
+cp .env.example .env
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-The frontend expects `VITE_API_BASE_URL=http://localhost:8000` during local development.
+Then open:
+
+```text
+http://127.0.0.1:8000/docs
+http://127.0.0.1:8000/api/health
+http://127.0.0.1:8000/api/integrations/status
+http://127.0.0.1:8000/api/budget/status
+```
+
+## Full research stack
+
+From the repository root:
+
+```bash
+docker compose up --build
+```
+
+Compose starts:
+
+- `vibe` — pinned Vibe-Trading MCP research sidecar on the internal network,
+- `api` — AlphaArena FastAPI service on port `8000`.
+
+The API receives `VIBE_MCP_URL=http://vibe:8900/mcp`. Vibe shell tools are disabled in the sidecar image.
+
+## Optional services
+
+The backend is deliberately resilient to missing optional services:
+
+- empty `QWEN_API_KEY` → deterministic reasoning fallback,
+- empty `MONGODB_URI` → in-memory storage fallback,
+- empty `VIBE_MCP_URL` → no historical Vibe context, clearly reported,
+- unavailable Bitget Signal → macro/news context omitted.
+
+Bitget live market data is more fundamental: actions that require a fresh market price return a readable upstream-unavailable response when it cannot be obtained.
+
+## Budget controls
+
+Defaults:
+
+```text
+QWEN_DAILY_ATTEMPT_LIMIT=12
+QWEN_MAX_ATTEMPTS_PER_REQUEST=1
+QWEN_MAX_OUTPUT_TOKENS=1400
+QWEN_TIMEOUT_SECONDS=35
+VIBE_CACHE_SECONDS=900
+SIGNAL_CACHE_SECONDS=300
+WATCHER_INTERVAL_SECONDS=60
+ARENA_STARTING_CAPITAL=100000
+```
+
+The model counter is an AlphaArena per-process safety fuse, not provider billing information. `GET /api/budget/status` exposes the current application-side state.
+
+## Tests
+
+```bash
+ruff check app tests
+pytest -q
+python -m compileall -q app
+python -c "from app.main import app; print(app.version)"
+```
+
+The test suite includes policy tests for no Bitget trade route, no background model use, concurrent virtual-capital allocation, immutable settlement and readable validation errors.
+
+## Source map
+
+```text
+app/main.py                    API routes + friendly problem handlers
+app/config.py                  environment/budget configuration
+app/schemas.py                 request/response contracts
+app/services/bitget.py         Bitget Reality market adapter
+app/services/vibe.py           Vibe research + historical calculations
+app/services/signal.py         Bitget Signal MCP adapter
+app/services/qwen.py           optional model synthesis
+app/services/budget.py         application-side model-call fuse
+app/services/analytics.py      deterministic market/scenario math
+app/services/nightwatch.py     adversarial thesis analysis
+app/services/market_twin.py    what-if scenario engine
+app/services/arena.py          paper ledger + settlement
+app/services/review.py         post-battle learning
+app/services/pulse.py          market event derivation
+app/services/watcher.py        cheap always-on Pulse refresh
+app/services/storage.py        MongoDB/in-memory repository abstraction
+```
+
+For deeper implementation notes, see the repository-level `docs/` directory.
