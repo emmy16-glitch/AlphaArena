@@ -6,6 +6,11 @@ class Settings(BaseSettings):
     frontend_origins: str = "http://localhost:5173"
     market_cache_seconds: int = 10
 
+    # Cheap market watcher. It never calls the LLM on a timer; it only derives
+    # Pulse events from public market metrics. Deep analysis is user-triggered.
+    watcher_enabled: bool = True
+    watcher_interval_seconds: int = 60
+
     # Alibaba Cloud Model Studio / Qwen. The shared Singapore DashScope
     # endpoint remains valid; a workspace-dedicated URL can be supplied later.
     qwen_api_key: str = ""
