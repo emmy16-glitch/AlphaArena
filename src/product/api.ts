@@ -16,11 +16,15 @@ export type NightWatchReport = {
   agents: AgentView[]; sources: SourceStatus;
 };
 
+export type TwinImpact = {
+  symbol: string; current_price: number; impact_pct: number; lower_pct: number; upper_pct: number; confidence: number;
+  model?: string | null; beta_to_qqq?: number | null;
+};
+
 export type TwinResponse = {
   id: string; prompt: string; generated_at: string; duration: string;
   shock: { driver: string; category: string; magnitude: number; unit: string; direction: 'up'|'down'|'mixed' };
-  impacts: Array<{ symbol: string; current_price: number; impact_pct: number; lower_pct: number; upper_pct: number; confidence: number }>;
-  explanation: string; analogues: HistoricalAnalogue[]; model_source: string; sources: SourceStatus;
+  impacts: TwinImpact[]; explanation: string; analogues: HistoricalAnalogue[]; model_source: string; sources: SourceStatus;
 };
 
 export type PulseEvent = {
@@ -31,7 +35,8 @@ export type PulseEvent = {
 export type BattleView = {
   id: string; symbol: string; thesis: string; user_side: Direction; ai_side: Direction; opponent: string;
   stake: number; entry_price: number; current_price: number; user_pnl_pct: number; ai_pnl_pct: number;
-  created_at: string; expires_at: string; status: 'live'|'settled'; source: string;
+  created_at: string; expires_at: string; settled_at?: string | null; settled_price?: number | null;
+  status: 'live'|'settled'; source: string;
 };
 
 export type PortfolioSummary = {
@@ -49,6 +54,11 @@ export type TraderProfile = {
 export type BattleReview = {
   battle_id: string; generated_at: string; winner: 'user'|'ai'|'draw'; user_result_pct: number; ai_result_pct: number;
   lesson: string; what_worked: string[]; what_failed: string[]; next_rule: string; source: string;
+};
+
+export type VibeSnapshot = {
+  connected: boolean; ticker: string; evidence: Record<string, unknown>; historical_stats: Record<string, number | null>;
+  analogues: HistoricalAnalogue[]; provenance: Record<string, unknown>; errors: string[];
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -83,5 +93,7 @@ export const productApi = {
   createTrader: (body: { name: string; style: TraderProfile['style']; risk_appetite: number; holding_period: TraderProfile['holding_period']; assets: string[] }) =>
     request<TraderProfile>('/api/traders', { method: 'POST', body: JSON.stringify(body) }),
   traders: () => request<TraderProfile[]>('/api/traders'),
+  vibeResearch: (symbol: string) => request<VibeSnapshot>(`/api/research/vibe/${encodeURIComponent(symbol)}`),
   integrations: () => request<Record<string, { configured: boolean; mode?: string; model?: string; fallback?: string }>>('/api/integrations/status'),
+  diagnostics: () => request<Record<string, unknown>>('/api/integrations/diagnostics'),
 };
