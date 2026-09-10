@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime, timezone
+from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
 
+from app.main import app
+from app.services import arena as arena_module
 from app.services.analytics import parse_shock, scenario_impact
-from app.services.arena import _pnl, arena_service
+from app.services.arena import ArenaError, _pnl, arena_service
+from app.services.budget import qwen_budget
 from app.services.mcp import MCPHttpClient
 from app.services.storage import store
 from app.services.vibe import _historical_stats, _move_analogues
@@ -99,6 +105,71 @@ async def test_settled_battle_is_immutable() -> None:
     assert second["settled_price"] == 110.0
     assert second["current_price"] == 110.0
     assert second["user_pnl_pct"] == 10.0
+
+
+@pytest.mark.asyncio
+async def test_concurrent_battles_cannot_oversubscribe_virtual_capital(monkeypatch: pytest.MonkeyPatch) -> None:
+    await store.clear_memory()
+
+    async def fake_asset(symbol: str) -> dict[str, object]:
+        return {"symbol": symbol, "price": 100.0}
+
+    monkeypatch.setattr(arena_module.bitget_market, "get_asset", fake_asset)
+    request = SimpleNamespace(
+        symbol="rNVDA",
+        user_side="LONG",
+        ai_side="WAIT",
+        thesis="A clearly falsifiable test thesis",
+        stake=60_000.0,
+        duration_hours=24,
+        opponent="NightWatch",
+    )
+    results = await asyncio.gather(
+        arena_service.create_battle(request),
+        arena_service.create_battle(request),
+        return_exceptions=True,
+    )
+    assert sum(isinstance(result, dict) for result in results) == 1
+    assert sum(isinstance(result, ArenaError) for result in results) == 1
+    portfolio = await arena_service.portfolio()
+    assert portfolio["deployed_capital"] == 60_000.0
+    assert portfolio["free_capital"] == 40_000.0
+
+
+@pytest.mark.asyncio
+async def test_budget_status_is_explicit_and_conservative() -> None:
+    await qwen_budget.reset_for_tests()
+    status = await qwen_budget.status()
+    assert int(status["daily_attempt_limit"]) >= 0
+    assert int(status["max_attempts_per_request"]) == 1
+    assert int(status["max_output_tokens_per_attempt"]) <= 2000
+    assert "provider billing" in str(status["accounting_scope"])
+
+
+@pytest.mark.asyncio
+async def test_validation_error_is_human_readable() -> None:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/nightwatch/analyze",
+            json={"symbol": "rNVDA", "direction": "LONG", "thesis": "x"},
+        )
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["error"]["code"] == "CHECK_INPUT"
+    assert "Traceback" not in response.text
+
+
+def test_no_real_money_trade_endpoint_exists_in_backend() -> None:
+    app_dir = Path(__file__).resolve().parents[1] / "app"
+    source = "\n".join(path.read_text(encoding="utf-8") for path in app_dir.rglob("*.py"))
+    assert "place-reality-order" not in source
+    assert "/api/v3/trade/" not in source
+
+
+def test_background_watcher_never_imports_qwen() -> None:
+    watcher = (Path(__file__).resolve().parents[1] / "app" / "services" / "watcher.py").read_text(encoding="utf-8")
+    assert "qwen" not in watcher.lower()
 
 
 def test_json_payloads_stay_strict() -> None:
