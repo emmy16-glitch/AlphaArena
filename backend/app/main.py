@@ -2,17 +2,19 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.schemas import BattleCreateRequest, MarketTwinRequest, NightWatchRequest
+from app.schemas import BattleCreateRequest, MarketTwinRequest, NightWatchRequest, TraderProfileRequest
 from app.services.arena import arena_service
 from app.services.bitget import BitgetError, bitget_market
 from app.services.market_twin import market_twin
 from app.services.nightwatch import nightwatch
 from app.services.pulse import pulse_service
+from app.services.review import review_service
 from app.services.storage import store
+from app.services.traders import trader_service
 
 app = FastAPI(
     title="AlphaArena API",
-    version="0.2.0",
+    version="0.3.0",
     description="Backend for AlphaArena NightWatch, MarketTwin and virtual-capital Arena.",
 )
 
@@ -27,14 +29,14 @@ app.add_middleware(
 
 @app.get("/api/health")
 async def health() -> dict[str, str]:
-    return {"status": "ok", "service": "alphaarena-api", "version": "0.2.0"}
+    return {"status": "ok", "service": "alphaarena-api", "version": "0.3.0"}
 
 
 @app.get("/api/integrations/status")
 async def integration_status() -> dict[str, object]:
     return {
         "data": {
-            "bitget": {"configured": True, "mode": "public Reality market data"},
+            "bitget": {"configured": True, "mode": "Reality market data"},
             "bitgetSignal": {"configured": bool(settings.bitget_signal_mcp_url), "mode": "public MCP"},
             "qwen": {"configured": settings.qwen_enabled, "model": settings.qwen_model},
             "vibeTrading": {"configured": settings.vibe_enabled, "mode": "streamable HTTP MCP sidecar"},
@@ -87,6 +89,11 @@ async def analyze_thesis(request: NightWatchRequest) -> dict[str, object]:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+@app.get("/api/nightwatch/history")
+async def analysis_history() -> dict[str, object]:
+    return {"data": await store.list("analyses", limit=50)}
+
+
 @app.post("/api/twin/simulate")
 async def simulate_scenario(request: MarketTwinRequest) -> dict[str, object]:
     try:
@@ -95,6 +102,11 @@ async def simulate_scenario(request: MarketTwinRequest) -> dict[str, object]:
         return {"data": result}
     except BitgetError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/twin/history")
+async def scenario_history() -> dict[str, object]:
+    return {"data": await store.list("scenarios", limit=50)}
 
 
 @app.post("/api/arena/battles")
@@ -118,6 +130,14 @@ async def get_battle(battle_id: str) -> dict[str, object]:
     return {"data": battle}
 
 
+@app.post("/api/arena/battles/{battle_id}/review")
+async def review_battle(battle_id: str) -> dict[str, object]:
+    battle = await arena_service.get_battle(battle_id)
+    if battle is None:
+        raise HTTPException(status_code=404, detail="Battle not found")
+    return {"data": await review_service.review(battle)}
+
+
 @app.get("/api/arena/portfolio")
 async def portfolio() -> dict[str, object]:
     return {"data": await arena_service.portfolio()}
@@ -126,3 +146,13 @@ async def portfolio() -> dict[str, object]:
 @app.get("/api/arena/leaderboard")
 async def leaderboard() -> dict[str, object]:
     return {"data": await arena_service.leaderboard()}
+
+
+@app.post("/api/traders")
+async def create_trader(request: TraderProfileRequest) -> dict[str, object]:
+    return {"data": await trader_service.create(request)}
+
+
+@app.get("/api/traders")
+async def list_traders() -> dict[str, object]:
+    return {"data": await trader_service.list()}
