@@ -10,13 +10,14 @@ import httpx
 from app.config import settings
 
 
+# Bitget Reality uses the literal `r + ticker + USDT` naming convention.
 DISPLAY_TO_BITGET = {
-    "rNVDA": "RNVDAUSDT",
-    "rTSLA": "RTSLAUSDT",
-    "rAAPL": "RAAPLUSDT",
-    "rMSFT": "RMSFTUSDT",
-    "rAMD": "RAMDUSDT",
-    "rQQQ": "RQQQUSDT",
+    "rNVDA": "rNVDAUSDT",
+    "rTSLA": "rTSLAUSDT",
+    "rAAPL": "rAAPLUSDT",
+    "rMSFT": "rMSFTUSDT",
+    "rAMD": "rAMDUSDT",
+    "rQQQ": "rQQQUSDT",
 }
 
 
@@ -43,7 +44,7 @@ def _format_volume(value: float) -> str:
 
 @dataclass
 class CacheEntry:
-    value: dict[str, Any]
+    value: Any
     expires_at: float
 
 
@@ -59,6 +60,17 @@ class BitgetMarketClient:
         if payload.get("code") != "00000":
             raise BitgetError(payload.get("msg") or "Bitget API request failed")
         return payload
+
+    async def get_reality_instruments(self) -> list[dict[str, Any]]:
+        now = time.time()
+        cached = self._cache.get("__reality_instruments__")
+        if cached and cached.expires_at > now:
+            return cached.value
+        payload = await self._get("/api/v3/market/instruments", {"category": "SPOT"})
+        rows = payload.get("data") or []
+        instruments = [row for row in rows if str(row.get("isReality", "")).lower() == "yes"]
+        self._cache["__reality_instruments__"] = CacheEntry(instruments, now + 300)
+        return instruments
 
     async def get_asset(self, display_symbol: str) -> dict[str, Any]:
         if display_symbol not in DISPLAY_TO_BITGET:
@@ -98,6 +110,8 @@ class BitgetMarketClient:
             candles = candle_payload.get("data") or []
             parsed = sorted(candles, key=lambda row: int(row[0]))
             spark = [_to_float(row[4]) for row in parsed if len(row) >= 5]
+        if not spark and last:
+            spark = [open_24 or last, last]
 
         result = {
             "symbol": display_symbol,
@@ -111,6 +125,7 @@ class BitgetMarketClient:
             "spark": spark,
             "timestamp": int(_to_float(ticker.get("ts"), time.time() * 1000)),
             "source": "bitget",
+            "isReality": True,
         }
         self._cache[display_symbol] = CacheEntry(value=result, expires_at=now + settings.market_cache_seconds)
         return result
@@ -120,11 +135,7 @@ class BitgetMarketClient:
             *(self.get_asset(symbol) for symbol in DISPLAY_TO_BITGET),
             return_exceptions=True,
         )
-        assets: list[dict[str, Any]] = []
-        for result in results:
-            if isinstance(result, Exception):
-                continue
-            assets.append(result)
+        assets = [result for result in results if not isinstance(result, Exception)]
         if not assets:
             raise BitgetError("No Bitget Reality market data is currently available")
         return assets
