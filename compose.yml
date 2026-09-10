@@ -1,0 +1,25 @@
+services:
+  vibe:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.vibe
+    environment:
+      VIBE_TRADING_ENABLE_SHELL_TOOLS: "0"
+      API_ALLOWED_HOSTS: "vibe,localhost,127.0.0.1"
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      VIBE_MCP_URL: "http://vibe:8900/mcp"
+      BITGET_SIGNAL_MCP_URL: "https://datahub.noxiaohao.com/mcp"
+      FRONTEND_ORIGINS: "http://localhost:5173"
+      QWEN_API_KEY: "${QWEN_API_KEY:-}"
+      MONGODB_URI: "${MONGODB_URI:-}"
+    depends_on:
+      - vibe
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
