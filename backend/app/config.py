@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,11 +12,12 @@ class Settings(BaseSettings):
     watcher_enabled: bool = True
     watcher_interval_seconds: int = 60
 
-    # Alibaba Cloud Model Studio / Qwen. These are application-side safety
-    # fuses, not a statement of the provider's billing/quota policy.
+    # Qwen model-family inference. Groq is the hackathon default, while the
+    # OpenAI-compatible client remains usable with Alibaba or another host.
+    ai_provider: str = "auto"
     qwen_api_key: str = ""
-    qwen_base_url: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-    qwen_model: str = "qwen-plus"
+    qwen_base_url: str = "https://api.groq.com/openai/v1"
+    qwen_model: str = "qwen/qwen3.6-27b"
     qwen_daily_attempt_limit: int = 12
     qwen_max_output_tokens: int = 1400
     qwen_max_attempts_per_request: int = 1
@@ -44,6 +47,20 @@ class Settings(BaseSettings):
     @property
     def qwen_enabled(self) -> bool:
         return bool(self.qwen_api_key.strip())
+
+    @property
+    def qwen_provider(self) -> str:
+        configured = self.ai_provider.strip().lower()
+        if configured and configured != "auto":
+            return configured
+        hostname = (urlparse(self.qwen_base_url).hostname or "").lower()
+        if hostname == "api.groq.com" or hostname.endswith(".groq.com"):
+            return "groq"
+        if hostname.endswith(".aliyuncs.com"):
+            return "alibaba"
+        if hostname == "api.openai.com" or hostname.endswith(".openai.com"):
+            return "openai"
+        return "openai-compatible"
 
     @property
     def vibe_enabled(self) -> bool:

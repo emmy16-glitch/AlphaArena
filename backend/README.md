@@ -10,7 +10,7 @@ The backend owns the rules that should not depend on UI behavior:
 - deterministic market/risk/scenario calculations,
 - Vibe-Trading historical research normalization,
 - optional Bitget Signal context,
-- optional budget-fused Qwen synthesis,
+- optional budget-fused Qwen 3.6 synthesis through Groq,
 - virtual portfolio accounting,
 - immutable paper-battle settlement,
 - post-battle review,
@@ -81,6 +81,16 @@ WATCHER_INTERVAL_SECONDS=60
 ARENA_STARTING_CAPITAL=100000
 ```
 
+The current hackathon provider settings are:
+
+```text
+AI_PROVIDER=groq
+QWEN_BASE_URL=https://api.groq.com/openai/v1
+QWEN_MODEL=qwen/qwen3.6-27b
+```
+
+The `QWEN_*` names identify the model family and remain backward-compatible. Diagnostics separately report `provider: groq`; they never expose credentials. Structured calls use JSON mode and hidden reasoning. To make exactly one optional live smoke call from the repository root, run `PYTHONPATH=backend backend/.venv/bin/python backend/scripts/check_ai_provider.py`.
+
 The model counter is an AlphaArena per-process safety fuse, not provider billing information. `GET /api/budget/status` exposes the current application-side state.
 
 ## Tests
@@ -92,7 +102,7 @@ python -m compileall -q app
 python -c "from app.main import app; print(app.version)"
 ```
 
-The test suite includes policy tests for no Bitget trade route, no background model use, concurrent virtual-capital allocation, immutable settlement and readable validation errors.
+The test suite includes mocked Qwen/Groq response and failure coverage plus policy tests for no Bitget trade route, no background model use, concurrent virtual-capital allocation, immutable settlement and readable validation errors. Normal CI never calls the live model provider.
 
 ## Source map
 

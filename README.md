@@ -26,7 +26,7 @@ AlphaArena is deliberately not another “AI says BUY” dashboard. It separates
 - **Vibe-Trading** supplies historical U.S.-equity research and mechanically derived calibration.
 - **Bitget Signal** supplies macro and cross-asset context when available.
 - **Deterministic AlphaArena code** calculates market metrics, stress impacts, uncertainty and paper PnL.
-- **Qwen** is an optional reasoning/synthesis layer. It is not allowed to overwrite deterministic scenario numbers or invent missing evidence.
+- **Qwen 3.6 27B**, served through Groq for a free hackathon development path, is the optional reasoning/synthesis layer. It is not allowed to overwrite deterministic scenario numbers or invent missing evidence.
 - **Arena** uses a fixed paper balance. There is no wallet connection, deposit, withdrawal or exchange order endpoint in the product.
 
 ## Bitget implementation
@@ -88,7 +88,7 @@ The default hackathon configuration is intentionally conservative:
 | Bitget Signal cache | `300s` |
 | Vibe shell tools | Disabled |
 
-The Qwen daily counter is an **AlphaArena safety fuse**, not a claim about Alibaba Cloud billing or provider quota. Provider billing remains the source of truth. The default API container runs one worker; if the service is horizontally scaled, the counter must move to shared persistence before it can be treated as a deployment-wide limit.
+The Qwen daily counter is an **AlphaArena safety fuse**, not a claim about Groq billing or provider quota. Provider billing remains the source of truth. The default API container runs one worker; if the service is horizontally scaled, the counter must move to shared persistence before it can be treated as a deployment-wide limit.
 
 See [docs/BUDGET_AND_SAFETY.md](docs/BUDGET_AND_SAFETY.md).
 
@@ -101,7 +101,7 @@ React + Vite UI
 FastAPI application
   │       │        │        │
   │       │        │        └── optional MongoDB persistence
-  │       │        └─────────── Qwen reasoning (user-triggered, budget fused)
+  │       │        └─────────── Qwen 3.6 reasoning via Groq (user-triggered, budget fused)
   │       └──────────────────── Bitget Signal MCP context
   ├──────────────────────────── Vibe-Trading MCP sidecar (research only)
   └──────────────────────────── Bitget UTA v3 Reality market data
@@ -129,7 +129,7 @@ The shortest full-stack path is Docker Compose:
 
 ```bash
 cp backend/.env.example backend/.env
-# Put QWEN_API_KEY in your shell/.env only if you want optional Qwen synthesis.
+# Put QWEN_API_KEY in backend/.env only if you want optional Groq-hosted Qwen synthesis.
 docker compose up --build
 ```
 
@@ -144,6 +144,8 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Without a configured Vibe sidecar, Qwen key or MongoDB URI, AlphaArena still exposes its deterministic/paper functionality and clearly reports which integrations are unavailable.
+
+The model settings retain their historical `QWEN_*` names because the model family is Qwen. `AI_PROVIDER=groq` and `QWEN_BASE_URL=https://api.groq.com/openai/v1` identify the actual inference host truthfully. The client keeps a small OpenAI-compatible provider layer so a future Alibaba-hosted deployment can use its own base URL without a Groq-only rewrite.
 
 ## Verification
 

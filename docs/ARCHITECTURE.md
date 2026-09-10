@@ -16,7 +16,7 @@ AlphaArena is intentionally split into a small interactive frontend, a determini
 │ Bitget adapter ───────────────► Reality public market data     │
 │ Vibe adapter ─────────────────► research-only MCP sidecar      │
 │ Signal adapter ────────────────► Bitget Signal MCP context     │
-│ Qwen client ───────────────────► optional user-triggered text  │
+│ Qwen client ───────────────────► Groq-hosted Qwen 3.6 synthesis│
 │                                                               │
 │ deterministic analytics · budget fuse · paper ledger          │
 │ immutable settlement · Pulse watcher · friendly problem API   │
@@ -42,6 +42,8 @@ Core calculations live in normal application code:
 - settlement and leaderboard values.
 
 Qwen receives those facts only after they exist. Its job is to challenge and explain, not manufacture the numbers the interface later treats as facts.
+
+The hackathon configuration serves the Qwen 3.6 27B model family through Groq. Structured calls use JSON mode with hidden reasoning, so chain-of-thought does not enter application content. The transport remains OpenAI-compatible and provider-aware rather than claiming that Alibaba Cloud serves the current deployment.
 
 ## Frontend
 

@@ -28,11 +28,13 @@ The current defaults are in `backend/app/config.py` and mirrored in `backend/.en
 
 ## What the Qwen counter means
 
-`QWEN_DAILY_ATTEMPT_LIMIT` is **not** the Alibaba Cloud account quota and is not an estimate of provider billing. It is a local AlphaArena safety fuse.
+`QWEN_DAILY_ATTEMPT_LIMIT` is **not** the Groq account quota and is not an estimate of provider billing. It is a local AlphaArena safety fuse.
 
 The current implementation stores that counter in memory and reports its accounting scope through `GET /api/budget/status`. Because the API container intentionally runs one Uvicorn worker, it behaves as a single-process demo fuse. A production deployment with multiple replicas must move the counter to a shared store before anyone describes it as a deployment-wide limit.
 
 If the fuse is exhausted, NightWatch, MarketTwin and post-battle review keep their deterministic fallback paths. The user does not lose access to the paper product.
+
+The current inference path is Groq-hosted Qwen 3.6 27B. AlphaArena requests JSON mode with hidden reasoning for structured production calls, caps each completion, and never exposes model reasoning fields to users. Provider failures are stored as small diagnostic categories without prompts, credentials, authorization headers or full upstream response bodies.
 
 ## Paper portfolio invariants
 

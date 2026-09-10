@@ -17,6 +17,7 @@ from app.services.budget import qwen_budget
 from app.services.market_twin import market_twin
 from app.services.nightwatch import nightwatch
 from app.services.pulse import pulse_service
+from app.services.qwen import qwen
 from app.services.review import review_service
 from app.services.signal import bitget_signal
 from app.services.storage import store
@@ -150,7 +151,7 @@ async def integration_status() -> dict[str, object]:
         "data": {
             "bitget": {"configured": True, "mode": "Reality public-market adapter"},
             "bitgetSignal": {"configured": bool(settings.bitget_signal_mcp_url), "mode": "public MCP"},
-            "qwen": {"configured": settings.qwen_enabled, "model": settings.qwen_model},
+            "qwen": qwen.diagnostics(),
             "vibeTrading": {"configured": settings.vibe_enabled, "mode": "research-only Streamable HTTP MCP sidecar"},
             "mongodb": {"configured": bool(settings.mongodb_uri), "fallback": "in-memory"},
             "watcher": pulse_watcher.status,
@@ -176,7 +177,7 @@ async def integration_diagnostics() -> dict[str, object]:
             "bitget": bitget_result,
             "vibeTrading": vibe_result,
             "bitgetSignal": signal_result,
-            "qwen": {"configured": settings.qwen_enabled, "model": settings.qwen_model, "budget": await qwen_budget.status()},
+            "qwen": {**qwen.diagnostics(), "budget": await qwen_budget.status()},
             "storage": {"mode": store.mode},
             "watcher": pulse_watcher.status,
         }
