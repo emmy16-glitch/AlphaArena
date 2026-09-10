@@ -7,11 +7,12 @@ from typing import Any
 
 
 def returns_pct(values: list[float]) -> list[float]:
-    clean = [float(v) for v in values if v and v > 0]
+    clean = [float(v) for v in values if v is not None and float(v) > 0]
     return [((b / a) - 1) * 100 for a, b in zip(clean, clean[1:]) if a > 0]
 
 
 def realized_volatility_pct(values: list[float]) -> float:
+    """Short-window realised volatility over the supplied sample, in percent."""
     returns = returns_pct(values)
     if len(returns) < 2:
         return 0.0
@@ -19,14 +20,14 @@ def realized_volatility_pct(values: list[float]) -> float:
 
 
 def momentum_pct(values: list[float]) -> float:
-    clean = [float(v) for v in values if v and v > 0]
+    clean = [float(v) for v in values if v is not None and float(v) > 0]
     if len(clean) < 2:
         return 0.0
     return ((clean[-1] / clean[0]) - 1) * 100
 
 
 def max_drawdown_pct(values: list[float]) -> float:
-    clean = [float(v) for v in values if v and v > 0]
+    clean = [float(v) for v in values if v is not None and float(v) > 0]
     if not clean:
         return 0.0
     peak = clean[0]
@@ -42,14 +43,14 @@ def market_metrics(asset: dict[str, Any]) -> dict[str, float]:
     price = float(asset.get("price") or 0)
     high = float(asset.get("high24") or price)
     low = float(asset.get("low24") or price)
-    spark = [float(v) for v in asset.get("spark") or []]
+    spark = [float(v) for v in asset.get("spark") or [] if v is not None]
     range_pct = ((high - low) / price * 100) if price else 0.0
     return {
         "change_pct": float(asset.get("changePct") or 0),
         "momentum_pct": momentum_pct(spark),
         "realized_vol_pct": realized_volatility_pct(spark),
         "drawdown_pct": max_drawdown_pct(spark),
-        "range_pct": range_pct,
+        "range_pct": max(0.0, range_pct),
     }
 
 
@@ -65,7 +66,7 @@ def resilience_score(asset: dict[str, Any], direction: str, risk_pct: float) -> 
         score += max(-12, min(12, change * 1.6))
         score += max(-8, min(8, momentum * 1.2))
         if change > 6:
-            score -= min(15, (change - 6) * 2.0)  # crowding / chase penalty
+            score -= min(15, (change - 6) * 2.0)
     elif direction == "SHORT":
         score += max(-12, min(12, -change * 1.6))
         score += max(-8, min(8, -momentum * 1.2))
@@ -79,21 +80,17 @@ def resilience_score(asset: dict[str, Any], direction: str, risk_pct: float) -> 
     score -= min(10, max(0, risk_pct - 2) * 1.3)
     score = int(round(max(5, min(95, score))))
 
-    confidence = int(round(max(45, min(92, 58 + len(asset.get("spark") or []) * 1.2 - volatility))))
-    if score >= 75:
-        risk = "LOW"
-    elif score >= 58:
-        risk = "MEDIUM"
-    elif score >= 40:
-        risk = "HIGH"
-    else:
-        risk = "EXTREME"
+    sample_count = len(asset.get("spark") or [])
+    confidence = int(round(max(45, min(92, 58 + sample_count * 1.2 - volatility))))
+    risk = "LOW" if score >= 75 else "MEDIUM" if score >= 58 else "HIGH" if score >= 40 else "EXTREME"
     return score, confidence, risk
 
 
 SCENARIO_BETAS: dict[str, dict[str, float]] = {
     "nasdaq": {"rNVDA": 1.55, "rTSLA": 1.42, "rAAPL": 0.86, "rMSFT": 1.02, "rAMD": 1.62, "rQQQ": 1.00},
     "btc": {"rNVDA": 0.28, "rTSLA": 0.36, "rAAPL": 0.14, "rMSFT": 0.18, "rAMD": 0.30, "rQQQ": 0.20},
+    # Percentage-point impact per basis point when yields RISE. These values are
+    # negative for long-duration growth equities; a yield fall flips the sign.
     "yields": {"rNVDA": -0.085, "rTSLA": -0.095, "rAAPL": -0.045, "rMSFT": -0.055, "rAMD": -0.080, "rQQQ": -0.060},
     "policy": {"rNVDA": -0.85, "rTSLA": -0.35, "rAAPL": -0.24, "rMSFT": -0.38, "rAMD": -0.78, "rQQQ": -0.32},
     "liquidity": {"rNVDA": -0.35, "rTSLA": -0.48, "rAAPL": -0.18, "rMSFT": -0.20, "rAMD": -0.42, "rQQQ": -0.18},
@@ -105,8 +102,8 @@ def parse_shock(prompt: str, severity: int) -> dict[str, Any]:
     text = prompt.lower()
     percent = re.search(r"([+-]?\d+(?:\.\d+)?)\s*%", text)
     bps = re.search(r"([+-]?\d+(?:\.\d+)?)\s*(?:bp|bps|basis points?)", text)
-    down_words = any(word in text for word in ("fall", "falls", "drop", "drops", "down", "crash", "miss", "restriction", "ban", "freeze"))
-    up_words = any(word in text for word in ("rise", "rises", "up", "spike", "hike", "surge"))
+    down_words = any(word in text for word in ("fall", "falls", "fell", "drop", "drops", "down", "crash", "miss", "restriction", "ban", "freeze", "cut"))
+    up_words = any(word in text for word in ("rise", "rises", "rose", "up", "spike", "hike", "surge", "jump"))
 
     if "nasdaq" in text or "qqq" in text or "ndx" in text:
         magnitude = abs(float(percent.group(1))) if percent else max(1.0, severity / 12)
@@ -133,18 +130,19 @@ def parse_shock(prompt: str, severity: int) -> dict[str, Any]:
 def scenario_impact(symbol: str, shock: dict[str, Any], severity: int, volatility_pct: float = 0.0) -> tuple[float, float, float, int]:
     category = str(shock["category"])
     beta = SCENARIO_BETAS.get(category, SCENARIO_BETAS["nasdaq"]).get(symbol, 1.0)
-    magnitude = float(shock["magnitude"])
-    sign = -1.0 if shock["direction"] == "down" else 1.0
+    magnitude = max(0.0, float(shock["magnitude"]))
+    direction_sign = -1.0 if shock["direction"] == "down" else 1.0
+
     if category == "yields":
-        # yield coefficients are percentage-point impact per basis point
-        impact = beta * magnitude
+        # beta is defined for a rise in yields, so a fall must invert it.
+        impact = beta * magnitude * (1.0 if shock["direction"] == "up" else -1.0)
     elif category in {"policy", "liquidity", "earnings"}:
-        impact = beta * magnitude
-        if shock["direction"] == "up":
-            impact *= -1
+        # Coefficients encode the normal adverse/down shock direction.
+        impact = beta * magnitude * (1.0 if shock["direction"] == "down" else -1.0)
     else:
-        impact = beta * magnitude * sign
+        impact = beta * magnitude * direction_sign
+
     impact *= 0.7 + (severity / 100) * 0.5
-    band = max(0.8, abs(impact) * 0.28 + volatility_pct * 0.35)
-    confidence = int(max(45, min(82, 76 - volatility_pct * 2 - abs(impact) * 0.5)))
+    band = max(0.8, abs(impact) * 0.28 + max(0.0, volatility_pct) * 0.35)
+    confidence = int(max(45, min(82, 76 - max(0.0, volatility_pct) * 2 - abs(impact) * 0.5)))
     return round(impact, 2), round(impact - band, 2), round(impact + band, 2), confidence
