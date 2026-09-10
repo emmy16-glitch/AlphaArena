@@ -11,11 +11,10 @@ from app.services.storage import store
 
 
 class PulseWatcher:
-    """Lightweight always-on detector for the Azure backend.
+    """Lightweight always-on detector for the backend.
 
-    The watcher does not invoke Qwen on a timer. It only evaluates inexpensive
-    public market metrics. Deep AI analysis stays user-triggered so credits are
-    not burned while nobody is using the product.
+    The watcher only evaluates inexpensive public market metrics. Deep model
+    analysis stays user-triggered so credits are never burned in the background.
     """
 
     def __init__(self) -> None:
@@ -59,8 +58,8 @@ class PulseWatcher:
                 await self.run_once()
             except asyncio.CancelledError:
                 raise
-            except Exception as exc:
-                self._last_error = str(exc)[:500]
+            except Exception:
+                self._last_error = "Market refresh unavailable; retrying automatically."
                 self._last_run = datetime.now(timezone.utc).isoformat()
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=settings.watcher_interval_seconds)
