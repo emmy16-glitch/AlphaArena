@@ -224,15 +224,21 @@ class NightWatchService:
         ai: dict[str, Any] | None = None
         if qwen.enabled:
             try:
-                ai = await qwen.complete_json(system=SYSTEM_PROMPT, payload={
-                    "trade": request.model_dump(),
-                    "bitget_market": asset,
-                    "deterministic_metrics": metrics,
-                    "deterministic_resilience": resilience,
-                    "stress_scenarios": stress,
-                    "vibe_trading": _model_vibe_context(vibe),
-                    "bitget_signal": _model_signal_context(signal),
-                })
+                ai = await qwen.complete_json(
+                    system=SYSTEM_PROMPT,
+                    # A concise adversarial result is more useful than a
+                    # throttled high-effort request on Groq's free tier.
+                    reasoning_effort="default",
+                    payload={
+                        "trade": request.model_dump(),
+                        "bitget_market": asset,
+                        "deterministic_metrics": metrics,
+                        "deterministic_resilience": resilience,
+                        "stress_scenarios": stress,
+                        "vibe_trading": _model_vibe_context(vibe),
+                        "bitget_signal": _model_signal_context(signal),
+                    },
+                )
             except QwenError:
                 ai = None
 
