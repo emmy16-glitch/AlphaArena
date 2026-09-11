@@ -23,6 +23,21 @@ test('MarketTwin runs a transparent scenario with model provenance', async ({ pa
   await expect(page.getByText(/not a forecast/i).first()).toBeVisible();
 });
 
+test('MarketTwin progressive disclosures and challenge flow preserve the original result', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/#/lab');
+  await page.getByRole('button', { name: 'Run scenario from prompt', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'What this scenario means' })).toBeVisible();
+  await page.getByRole('button', { name: /View why Nvidia has this estimate/i }).click();
+  await expect(page.getByText(/measured relationship with the selected benchmark/i)).toBeVisible();
+  await page.getByRole('button', { name: 'Challenge this', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'What would you like to challenge?' })).toBeVisible();
+  await page.getByRole('button', { name: 'The historical evidence', exact: true }).click();
+  await page.getByRole('button', { name: 'Test this objection', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'The original remains unchanged' })).toBeVisible();
+  await expect(page.getByText('Original historical sensitivity')).toBeVisible();
+});
+
 test('technical upstream failures are translated into human language', async ({ page }) => {
   await mockApi(page, { pulseFailure: true });
   await page.goto('/#/pulse');

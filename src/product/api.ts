@@ -16,14 +16,27 @@ export type NightWatchReport = {
 };
 
 export type TwinImpact = {
-  symbol: string; current_price: number; impact_pct: number; lower_pct: number; upper_pct: number; confidence: number;
+  symbol: string; asset_name?: string | null; current_price: number; impact_pct: number; lower_pct: number; upper_pct: number; confidence: number;
   model?: string | null; beta_to_qqq?: number | null;
 };
+
+export type TwinExplanation = {
+  plain_summary: string; impact_summary: string; limitations: string[];
+  confidence_label: 'limited'|'mixed'|'fairly_strong'|'stronger';
+};
+
+export type HistoricalContextMeta = {
+  selection_basis: 'current_observed_move'|'scenario_match'; data_frequency: 'daily'|'intraday'|'mixed'; selection_disclaimer: string;
+};
+
+export type TwinAssumptions = { benchmark_move_pct: number; duration: string; sensitivity_method: 'historical'|'conservative'|'custom' };
 
 export type TwinResponse = {
   id: string; prompt: string; generated_at: string; duration: string;
   shock: { driver: string; category: string; magnitude: number; unit: string; direction: 'up'|'down'|'mixed' };
   impacts: TwinImpact[]; explanation: string; analogues: HistoricalAnalogue[]; model_source: string; sources: SourceStatus;
+  explanation_view?: TwinExplanation | null; historical_context?: HistoricalContextMeta | null;
+  assumptions?: TwinAssumptions | null; challenge_options?: string[];
 };
 
 export type PulseEvent = {

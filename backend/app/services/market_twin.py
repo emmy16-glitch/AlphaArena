@@ -12,6 +12,26 @@ from app.services.signal import bitget_signal
 from app.services.vibe import vibe_research
 
 
+ASSET_NAMES = {
+    "rNVDA": "Nvidia",
+    "rTSLA": "Tesla",
+    "rAAPL": "Apple",
+    "rMSFT": "Microsoft",
+    "rAMD": "AMD",
+    "rQQQ": "the Nasdaq 100 tracker",
+}
+
+CHALLENGE_OPTIONS = [
+    "The size of the market move",
+    "The time horizon",
+    "The estimated asset reaction",
+    "The historical evidence",
+    "The confidence level",
+    "The assumption that historical relationships still apply",
+    "I have company-specific information",
+]
+
+
 TWIN_SYSTEM_PROMPT = """You are MarketTwin's scenario explainer. Do not give financial advice.
 The supplied impact numbers were calculated by deterministic code: never change or invent them.
 Use only supplied evidence and treat historical analogues as observations, not forecasts.
@@ -95,6 +115,7 @@ class MarketTwinService:
             model_sources.add(model)
             impacts.append({
                 "symbol": asset["symbol"],
+                "asset_name": ASSET_NAMES.get(asset["symbol"], asset["symbol"]),
                 "current_price": asset["price"],
                 "impact_pct": impact,
                 "lower_pct": lower,
@@ -151,6 +172,28 @@ class MarketTwinService:
                 "relevance": "The scenario remains a transparent sensitivity test; connect/retry Vibe-Trading to add historical comparison.",
             }]
 
+        ordered_impacts = sorted(impacts, key=lambda item: abs(float(item["impact_pct"])), reverse=True)
+        top_names = [str(item.get("asset_name") or item["symbol"]) for item in ordered_impacts[:3]]
+        top_text = ", ".join(top_names[:-1]) + (f", and {top_names[-1]}" if len(top_names) > 1 else (top_names[0] if top_names else "the tracked assets"))
+        average_confidence = round(sum(int(item["confidence"]) for item in impacts) / max(1, len(impacts)))
+        confidence_label = "limited" if average_confidence < 40 else "mixed" if average_confidence < 60 else "fairly_strong" if average_confidence < 80 else "stronger"
+        confidence_phrase = {
+            "limited": "The evidence is limited.",
+            "mixed": "The evidence is mixed, so uncertainty is substantial.",
+            "fairly_strong": "The evidence is fairly strong, but it is not conclusive.",
+            "stronger": "The evidence is relatively consistent, but it cannot predict a live event.",
+        }[confidence_label]
+        plain_summary = (
+            f"If {shock['driver']} moved {shock['direction']} by {shock['magnitude']}{shock['unit']} over {request.duration}, "
+            f"{top_text} show the largest estimated sensitivity in this simulation. {confidence_phrase}"
+        )
+        impact_summary = f"The largest simulated move is {ordered_impacts[0]['impact_pct']:+.2f}% for {top_names[0]}." if ordered_impacts else "No tracked asset impact was available."
+        limitations = [
+            "This is a hypothetical stress test, not a forecast or recommendation.",
+            "Historical daily relationships can fail during company news, panic, reversals, or thin liquidity.",
+            "The estimated range is a sensitivity bound, not a confidence interval or promised outcome.",
+        ]
+
         if model_sources == {"Vibe-Trading measured beta"}:
             model_source = "Vibe-Trading historical calibration + AlphaArena stress engine"
         elif "Vibe-Trading measured beta" in model_sources:
@@ -174,6 +217,23 @@ class MarketTwinService:
                 "vibe": "connected" if vibe.get("connected") else ("unavailable" if vibe_research.enabled else "not-configured"),
                 "signal": "connected" if signal.get("connected") else "unavailable",
             },
+            "explanation_view": {
+                "plain_summary": plain_summary,
+                "impact_summary": impact_summary,
+                "limitations": limitations,
+                "confidence_label": confidence_label,
+            },
+            "historical_context": {
+                "selection_basis": "current_observed_move",
+                "data_frequency": "daily",
+                "selection_disclaimer": "These daily observations were selected using the underlying asset's current observed move. They provide calibration context; they are not historical matches for this hypothetical scenario and they are not predictions.",
+            },
+            "assumptions": {
+                "benchmark_move_pct": float(shock["magnitude"]) * (-1 if shock["direction"] == "down" else 1),
+                "duration": request.duration,
+                "sensitivity_method": "historical",
+            },
+            "challenge_options": CHALLENGE_OPTIONS,
         }
 
 

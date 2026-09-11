@@ -70,6 +70,18 @@ const twin = {
   shock: { driver: 'Nasdaq 100', category: 'nasdaq', magnitude: 5, unit: '%', direction: 'down' },
   impacts: assets.slice(0, 4).map((asset, index) => ({ symbol: asset.symbol, current_price: asset.price, impact_pct: -3.2 - index, lower_pct: -5.5 - index, upper_pct: -1.2 - index, confidence: 68, model: 'Vibe-Trading measured beta', beta_to_qqq: 1.1 + index * 0.1 })),
   explanation: 'Measured historical sensitivity is applied where enough aligned observations exist; uncertainty is widened with current volatility.',
+  explanation_view: {
+    plain_summary: 'If the Nasdaq 100 fell 5%, the assets with the strongest historical sensitivity in this simulation could move the most. The evidence is fairly strong, but not conclusive.',
+    impact_summary: 'The largest simulated move is -3.20% for Nvidia.',
+    limitations: ['This is a hypothetical stress test, not a forecast or recommendation.', 'Company-specific news can make the estimate wrong.'],
+    confidence_label: 'fairly_strong',
+  },
+  historical_context: {
+    selection_basis: 'current_observed_move', data_frequency: 'daily',
+    selection_disclaimer: 'These daily observations were selected using the underlying asset\'s current observed move. They are context, not scenario matches or predictions.',
+  },
+  assumptions: { benchmark_move_pct: -5, duration: '24H', sensitivity_method: 'historical' },
+  challenge_options: ['The size of the market move', 'The time horizon', 'The historical evidence'],
   analogues: [{ label: 'Historical comparison', outcome: 'Observed next-day outcomes varied.', relevance: 'Context only, not a forecast.' }],
   model_source: 'Vibe-Trading historical calibration + AlphaArena stress engine',
   sources: { market: 'bitget-live', qwen: 'deterministic-fallback', vibe: 'connected', signal: 'connected' },

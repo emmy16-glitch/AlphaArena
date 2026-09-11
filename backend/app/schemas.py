@@ -88,6 +88,7 @@ class ParsedShock(BaseModel):
 
 class TwinImpact(BaseModel):
     symbol: str
+    asset_name: str | None = None
     current_price: float
     impact_pct: float
     lower_pct: float
@@ -95,6 +96,25 @@ class TwinImpact(BaseModel):
     confidence: int
     model: str | None = None
     beta_to_qqq: float | None = None
+
+
+class TwinExplanation(BaseModel):
+    plain_summary: str
+    impact_summary: str
+    limitations: list[str] = Field(default_factory=list)
+    confidence_label: Literal["limited", "mixed", "fairly_strong", "stronger"]
+
+
+class HistoricalContextMeta(BaseModel):
+    selection_basis: Literal["current_observed_move", "scenario_match"] = "current_observed_move"
+    data_frequency: Literal["daily", "intraday", "mixed"] = "daily"
+    selection_disclaimer: str
+
+
+class TwinAssumptions(BaseModel):
+    benchmark_move_pct: float
+    duration: str
+    sensitivity_method: Literal["historical", "conservative", "custom"] = "historical"
 
 
 class MarketTwinResponse(BaseModel):
@@ -108,6 +128,10 @@ class MarketTwinResponse(BaseModel):
     analogues: list[HistoricalAnalogue] = Field(default_factory=list)
     model_source: str
     sources: SourceStatus
+    explanation_view: TwinExplanation | None = None
+    historical_context: HistoricalContextMeta | None = None
+    assumptions: TwinAssumptions | None = None
+    challenge_options: list[str] = Field(default_factory=list)
 
 
 class PulseEvent(BaseModel):
