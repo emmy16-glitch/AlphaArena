@@ -103,7 +103,7 @@ export const productApi = {
   battles: () => apiData<BattleView[]>('/api/arena/battles'),
   battle: (id: string) => apiData<BattleView>(`/api/arena/battles/${encodeURIComponent(id)}`),
   reviewBattle: (id: string) => apiData<BattleReview>(`/api/arena/battles/${encodeURIComponent(id)}/review`, { method: 'POST' }),
-  portfolio: () => apiData<PortfolioSummary>('/api/arena/portfolio'),
+  portfolio: (signal?: AbortSignal) => apiData<PortfolioSummary>('/api/arena/portfolio', { signal }),
   leaderboard: () => apiData<LeaderRow[]>('/api/arena/leaderboard'),
   createTrader: (body: { name: string; style: TraderProfile['style']; risk_appetite: number; holding_period: TraderProfile['holding_period']; assets: string[] }) =>
     apiData<TraderProfile>('/api/traders', { method: 'POST', body: JSON.stringify(body) }),

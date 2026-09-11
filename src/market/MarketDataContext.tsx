@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { assets as fallbackAssets, type Asset } from '../data';
 import { fetchMarketAssets, type ApiMarketAsset } from './api';
 
@@ -33,10 +33,14 @@ export function MarketDataProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<MarketStatus>('connecting');
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
+    if (document.visibilityState === 'hidden' || requestRef.current) return;
+    const controller = new AbortController();
+    requestRef.current = controller;
     try {
-      const liveAssets = await fetchMarketAssets();
+      const liveAssets = await fetchMarketAssets(controller.signal);
       const bySymbol = new Map(liveAssets.map((asset) => [asset.symbol, asset]));
       setAssets(fallbackAssets.map((base) => {
         const live = bySymbol.get(base.symbol);
@@ -46,18 +50,30 @@ export function MarketDataProvider({ children }: { children: ReactNode }) {
       setLastUpdated(Date.now());
       setError(null);
     } catch (err) {
+      if (controller.signal.aborted) return;
       setStatus('fallback');
       setError(err instanceof Error ? err.message : 'Live market data unavailable');
+    } finally {
+      if (requestRef.current === controller) requestRef.current = null;
     }
-  };
+  }, []);
 
   useEffect(() => {
     void refresh();
     const timer = window.setInterval(() => void refresh(), 15_000);
-    return () => window.clearInterval(timer);
-  }, []);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      requestRef.current?.abort();
+      requestRef.current = null;
+    };
+  }, [refresh]);
 
-  const value = useMemo(() => ({ assets, status, lastUpdated, error, refresh }), [assets, status, lastUpdated, error]);
+  const value = useMemo(() => ({ assets, status, lastUpdated, error, refresh }), [assets, status, lastUpdated, error, refresh]);
   return <MarketDataContext.Provider value={value}>{children}</MarketDataContext.Provider>;
 }
 

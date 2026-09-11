@@ -52,6 +52,10 @@ async function readJson(response: Response): Promise<unknown> {
 export async function apiRequest<T>(path: string, init?: RequestInit, timeoutMs = 75_000): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  const externalSignal = init?.signal;
+  const abortFromCaller = () => controller.abort();
+  if (externalSignal?.aborted) controller.abort();
+  externalSignal?.addEventListener('abort', abortFromCaller, { once: true });
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
@@ -83,6 +87,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit, timeoutMs 
     throw new Error('We can’t reach AlphaArena right now. Check your connection and try again.');
   } finally {
     window.clearTimeout(timeout);
+    externalSignal?.removeEventListener('abort', abortFromCaller);
   }
 }
 

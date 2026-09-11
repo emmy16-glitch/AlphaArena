@@ -20,7 +20,7 @@ export type ApiMarketAsset = {
   platformTurnover24h?: number;
 };
 
-export const fetchMarketAssets = () => apiData<ApiMarketAsset[]>('/api/market/assets', undefined, 15_000);
+export const fetchMarketAssets = (signal?: AbortSignal) => apiData<ApiMarketAsset[]>('/api/market/assets', { signal }, 15_000);
 
-export const fetchMarketAsset = (symbol: string) =>
-  apiData<ApiMarketAsset>(`/api/market/assets/${encodeURIComponent(symbol)}`, undefined, 15_000);
+export const fetchMarketAsset = (symbol: string, signal?: AbortSignal) =>
+  apiData<ApiMarketAsset>(`/api/market/assets/${encodeURIComponent(symbol)}`, { signal }, 15_000);

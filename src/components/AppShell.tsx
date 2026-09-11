@@ -24,14 +24,26 @@ export default function AppShell({ view, onNav, onHome, children, onCreate }: { 
 
   useEffect(() => {
     let active = true;
+    let controller: AbortController | null = null;
+    let loading = false;
     const load = async () => {
-      const [portfolioResult] = await Promise.allSettled([productApi.portfolio()]);
-      if (!active) return;
-      if (portfolioResult.status === 'fulfilled') setPortfolio(portfolioResult.value);
+      if (!active || document.visibilityState === 'hidden' || loading) return;
+      loading = true;
+      controller = new AbortController();
+      const [portfolioResult] = await Promise.allSettled([productApi.portfolio(controller.signal)]);
+      if (active && portfolioResult.status === 'fulfilled') setPortfolio(portfolioResult.value);
+      loading = false;
     };
     void load();
     const timer = window.setInterval(() => void load(), 30_000);
-    return () => { active = false; window.clearInterval(timer); };
+    const onVisibilityChange = () => { if (document.visibilityState === 'visible') void load(); };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      controller?.abort();
+    };
   }, []);
 
   const net = portfolio?.net_value ?? 100_000;

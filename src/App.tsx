@@ -1,18 +1,17 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import AppShell from './components/AppShell';
-import ConnectedAsset from './components/ConnectedAsset';
-import { Landing } from './components/Screens';
-import {
-  ConnectedArena,
-  ConnectedBattle,
-  ConnectedLab,
-  ConnectedLeaderboard,
-  ConnectedNightWatch,
-  ConnectedPortfolio,
-  ConnectedPulse,
-} from './components/ConnectedScreens';
-import ConnectedTrader from './components/ConnectedTrader';
 import type { Direction } from './product/api';
+
+const Landing = lazy(() => import('./features/LandingScreen'));
+const ConnectedAsset = lazy(() => import('./components/ConnectedAsset'));
+const ConnectedPulse = lazy(() => import('./features/PulseScreen'));
+const ConnectedNightWatch = lazy(() => import('./features/NightWatchScreen'));
+const ConnectedLab = lazy(() => import('./features/MarketTwinScreen'));
+const ConnectedTrader = lazy(() => import('./components/ConnectedTrader'));
+const ConnectedArena = lazy(() => import('./features/ArenaScreens').then((module) => ({ default: module.ArenaScreen })));
+const ConnectedBattle = lazy(() => import('./features/ArenaScreens').then((module) => ({ default: module.BattleScreen })));
+const ConnectedPortfolio = lazy(() => import('./features/ArenaScreens').then((module) => ({ default: module.PortfolioScreen })));
+const ConnectedLeaderboard = lazy(() => import('./features/ArenaScreens').then((module) => ({ default: module.LeaderboardScreen })));
 
 type Route = { view: string; payload?: Record<string, unknown> };
 
@@ -23,6 +22,10 @@ function initialRoute(): Route {
   if (state?.view && VALID_VIEWS.has(state.view)) return state;
   const hashView = window.location.hash.replace(/^#\/?/, '').split('?')[0];
   return { view: VALID_VIEWS.has(hashView) ? hashView : 'landing' };
+}
+
+function ScreenLoading() {
+  return <div className="flex min-h-[60vh] items-center justify-center px-5" role="status" aria-live="polite"><div className="rounded-2xl border border-[#E7E5DE] bg-white px-5 py-4 text-[13px] text-[#8A8A84]">Loading AlphaArena…</div></div>;
 }
 
 export default function App() {
@@ -47,16 +50,14 @@ export default function App() {
     document.title = `${label} · AlphaArena`;
   }, [route.view]);
 
-  if (route.view === 'landing') return <Landing onEnter={(view) => nav(view)} />;
-
   const symbol = (route.payload?.symbol as string) || 'rNVDA';
   const prompt = route.payload?.prompt as string | undefined;
   const thesis = (route.payload?.thesis as string) || '';
   const aiSide = ((route.payload?.aiSide as Direction) || 'WAIT');
   const battleId = route.payload?.id as string | undefined;
 
-  return (
-    <AppShell view={route.view} onNav={(view) => nav(view)} onHome={() => nav('landing')} onCreate={() => nav('create')}>
+  return <Suspense fallback={<ScreenLoading />}>
+    {route.view === 'landing' ? <Landing onEnter={(view) => nav(view)} /> : <AppShell view={route.view} onNav={(view) => nav(view)} onHome={() => nav('landing')} onCreate={() => nav('create')}>
       {route.view === 'pulse' && <ConnectedPulse onNav={nav} />}
       {route.view === 'asset' && <ConnectedAsset symbol={symbol} onNav={nav} />}
       {route.view === 'nightwatch' && <ConnectedNightWatch symbol={symbol} onNav={nav} />}
@@ -66,6 +67,6 @@ export default function App() {
       {route.view === 'leaderboard' && <ConnectedLeaderboard />}
       {route.view === 'portfolio' && <ConnectedPortfolio onNav={nav} />}
       {route.view === 'create' && <ConnectedTrader onNav={nav} />}
-    </AppShell>
-  );
+    </AppShell>}
+  </Suspense>;
 }
