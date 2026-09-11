@@ -224,7 +224,13 @@ class QwenClient:
             error.upstream_code,
         )
 
-    def _request_body(self, *, system: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def _request_body(
+        self,
+        *,
+        system: str,
+        payload: dict[str, Any],
+        reasoning_effort_override: str | None = None,
+    ) -> dict[str, Any]:
         serialized_payload = _serialize_prompt_payload(payload)
         body: dict[str, Any] = {
             "model": settings.qwen_model,
@@ -245,7 +251,7 @@ class QwenClient:
             body["reasoning_format"] = "hidden"
             # Qwen 3.8's highest public Groq setting is `high` (mapped by Groq
             # to the model's native xhigh mode). Qwen 3.6 only accepts `default`.
-            body["reasoning_effort"] = (
+            body["reasoning_effort"] = reasoning_effort_override or (
                 "high" if settings.qwen_model == "qwen/qwen3.8-27b" else "default"
             )
             body["top_p"] = 0.95
@@ -280,16 +286,37 @@ class QwenClient:
             content = message["parsed"]
         return _extract_json(content)
 
-    async def complete_json(self, *, system: str, payload: dict[str, Any]) -> dict[str, Any] | None:
+    async def complete_json(
+        self,
+        *,
+        system: str,
+        payload: dict[str, Any],
+        reasoning_effort: str | None = None,
+    ) -> dict[str, Any] | None:
         if not self.enabled:
             return None
 
         url = f"{settings.qwen_base_url.rstrip('/')}/chat/completions"
-        body = self._request_body(system=system, payload=payload)
-
         attempts = max(1, settings.qwen_max_attempts_per_request)
         last_error = "upstream"
         for attempt in range(attempts):
+            # Keep the first request at the configured highest effort. Groq's
+            # JSON validator can occasionally reject a high-effort completion;
+            # a fast default-effort retry preserves a usable model answer
+            # instead of surfacing a configured-error fallback to the user.
+            fallback_effort = reasoning_effort
+            if (
+                fallback_effort is None
+                and self.provider == "groq"
+                and settings.qwen_model == "qwen/qwen3.8-27b"
+                and attempt > 0
+            ):
+                fallback_effort = "default"
+            body = self._request_body(
+                system=system,
+                payload=payload,
+                reasoning_effort_override=fallback_effort,
+            )
             try:
                 await qwen_budget.acquire_attempt()
             except BudgetExhausted as exc:
@@ -354,7 +381,15 @@ class QwenClient:
                 error = QwenError("upstream", status_code=response.status_code, upstream_code=upstream_code)
             last_error = error.code
 
-            retryable = response.status_code in {408, 409, 429} or response.status_code >= 500
+            retryable = (
+                response.status_code in {408, 409, 429}
+                or response.status_code >= 500
+                or (
+                    self.provider == "groq"
+                    and response.status_code == 400
+                    and upstream_code == "json_validate_failed"
+                )
+            )
             if retryable and attempt + 1 < attempts:
                 delay = _retry_delay(response, attempt)
                 if delay is not None:

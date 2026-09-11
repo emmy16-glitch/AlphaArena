@@ -67,19 +67,19 @@ class MarketTwinService:
             if shock.get("category") != "nasdaq" or not vibe_research.enabled:
                 return {}
             try:
-                return await asyncio.wait_for(vibe_research.calibrations(symbols), timeout=max(25.0, len(symbols) * 8.0))
+                return await asyncio.wait_for(vibe_research.calibrations(symbols), timeout=8)
             except Exception:
                 return {}
 
         async def get_vibe_context() -> dict[str, Any]:
             try:
-                return await asyncio.wait_for(vibe_research.historical_context(assets[0]["symbol"]), timeout=25)
+                return await asyncio.wait_for(vibe_research.historical_context(assets[0]["symbol"]), timeout=8)
             except Exception as exc:
                 return {"connected": False, "errors": [str(exc)]}
 
         async def get_macro_context() -> dict[str, Any]:
             try:
-                return await asyncio.wait_for(bitget_signal.snapshot(assets[0]["symbol"]), timeout=15)
+                return await asyncio.wait_for(bitget_signal.snapshot(assets[0]["symbol"]), timeout=4)
             except Exception as exc:
                 return {"connected": False, "errors": [str(exc)]}
 
@@ -118,6 +118,10 @@ class MarketTwinService:
             try:
                 ai = await qwen.complete_json(
                     system=TWIN_SYSTEM_PROMPT,
+                    # Twin's response is a short explanation; default effort
+                    # avoids spending the free-tier token window on hidden
+                    # chain-of-thought while keeping the answer grounded.
+                    reasoning_effort="default",
                     payload={
                         "scenario": request.model_dump(),
                         "parsed_shock": shock,

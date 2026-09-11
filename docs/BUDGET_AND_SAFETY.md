@@ -18,8 +18,8 @@ The current defaults are in `backend/app/config.py` and mirrored in `backend/.en
 | --- | ---: | --- |
 | `ARENA_STARTING_CAPITAL` | `100000` | Fixed paper starting balance |
 | `QWEN_DAILY_ATTEMPT_LIMIT` | `12` | Application-side fuse against accidental call loops |
-| `QWEN_MAX_ATTEMPTS_PER_REQUEST` | `3` | Bound transient-provider retries |
-| `QWEN_MAX_OUTPUT_TOKENS` | `4000` | Leave room for high reasoning while bounding response size/cost |
+| `QWEN_MAX_ATTEMPTS_PER_REQUEST` | `2` | Bound transient-provider retries without multiplying provider throttling |
+| `QWEN_MAX_OUTPUT_TOKENS` | `3000` | Leave room for high reasoning while bounding response size/cost |
 | `QWEN_RETRY_MAX_WAIT_SECONDS` | `10` | Do not hold requests open for long quota resets |
 | `QWEN_TIMEOUT_SECONDS` | `35` | Bound user wait time and hanging requests |
 | `VIBE_CACHE_SECONDS` | `900` | Reuse expensive historical research for 15 minutes |

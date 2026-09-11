@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     qwen_base_url: str = "https://api.groq.com/openai/v1"
     qwen_model: str = "qwen/qwen3.8-27b"
     qwen_daily_attempt_limit: int = 12
-    qwen_max_output_tokens: int = 4000
-    qwen_max_attempts_per_request: int = 3
+    qwen_max_output_tokens: int = 3000
+    qwen_max_attempts_per_request: int = 2
     qwen_retry_max_wait_seconds: float = 10.0
     qwen_timeout_seconds: float = 35.0
 

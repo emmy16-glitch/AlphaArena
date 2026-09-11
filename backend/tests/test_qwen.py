@@ -19,7 +19,7 @@ async def configured_qwen(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "qwen_model", "qwen/qwen3.8-27b")
     monkeypatch.setattr(settings, "qwen_daily_attempt_limit", 100)
     monkeypatch.setattr(settings, "qwen_max_attempts_per_request", 1)
-    monkeypatch.setattr(settings, "qwen_max_output_tokens", 4000)
+    monkeypatch.setattr(settings, "qwen_max_output_tokens", 3000)
     monkeypatch.setattr(settings, "qwen_retry_max_wait_seconds", 10.0)
     monkeypatch.setattr(settings, "qwen_timeout_seconds", 1.0)
     await qwen_budget.reset_for_tests()
@@ -113,6 +113,35 @@ async def test_rate_limit_retries_after_provider_delay(monkeypatch: pytest.Monke
     assert await _complete(_client(throttled_once)) == {"ok": True}
     assert calls == 2
     assert delays == [1.25]
+
+
+@pytest.mark.asyncio
+async def test_groq_json_validation_retries_with_fast_default_effort(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "qwen_max_attempts_per_request", 2)
+    efforts: list[str] = []
+
+    def invalid_once(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        efforts.append(str(body["reasoning_effort"]))
+        if len(efforts) == 1:
+            return httpx.Response(400, json={"error": {"code": "json_validate_failed"}})
+        return _response('{"ok":true}')
+
+    assert await _complete(_client(invalid_once)) == {"ok": True}
+    assert efforts == ["high", "default"]
+
+
+@pytest.mark.asyncio
+async def test_call_can_select_default_effort_for_short_answers() -> None:
+    captured_body: dict[str, object] = {}
+
+    def inspect_request(request: httpx.Request) -> httpx.Response:
+        captured_body.update(json.loads(request.content))
+        return _response('{"ok":true}')
+
+    client = _client(inspect_request)
+    assert await client.complete_json(system="Return JSON.", payload={"fact": "grounded"}, reasoning_effort="default") == {"ok": True}
+    assert captured_body["reasoning_effort"] == "default"
 
 
 async def _record_delay(delays: list[float], delay: float) -> None:
@@ -239,7 +268,7 @@ async def test_groq_request_uses_json_mode_and_hidden_reasoning() -> None:
     assert captured_body["reasoning_effort"] == "high"
     assert captured_body["temperature"] == 0.6
     assert captured_body["top_p"] == 0.95
-    assert captured_body["max_completion_tokens"] == 4000
+    assert captured_body["max_completion_tokens"] == 3000
     assert captured_body["messages"][0]["role"] == "user"
     assert "max_tokens" not in captured_body
 
@@ -289,7 +318,7 @@ async def test_non_groq_provider_omits_groq_reasoning_parameter(monkeypatch: pyt
 
     await _complete(_client(inspect_request))
     assert captured_body["response_format"] == {"type": "json_object"}
-    assert captured_body["max_tokens"] == 4000
+    assert captured_body["max_tokens"] == 3000
     assert "reasoning_format" not in captured_body
     assert "reasoning_effort" not in captured_body
     assert "max_completion_tokens" not in captured_body

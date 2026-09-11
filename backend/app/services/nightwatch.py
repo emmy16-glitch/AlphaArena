@@ -142,13 +142,15 @@ class NightWatchService:
     async def _external_context(self, symbol: str) -> tuple[dict[str, Any], dict[str, Any]]:
         async def vibe_task() -> dict[str, Any]:
             try:
-                return await asyncio.wait_for(vibe_research.snapshot(symbol), timeout=30)
+                # Research is valuable context, but it must not hold the user
+                # request open while a sidecar provider is slow.
+                return await asyncio.wait_for(vibe_research.snapshot(symbol), timeout=15)
             except Exception as exc:
                 return {"connected": False, "evidence": {}, "errors": [str(exc)]}
 
         async def signal_task() -> dict[str, Any]:
             try:
-                return await asyncio.wait_for(bitget_signal.snapshot(symbol), timeout=15)
+                return await asyncio.wait_for(bitget_signal.snapshot(symbol), timeout=4)
             except Exception as exc:
                 return {"connected": False, "evidence": {}, "errors": [str(exc)]}
 
