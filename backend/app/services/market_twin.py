@@ -122,6 +122,7 @@ class MarketTwinService:
                     # avoids spending the free-tier token window on hidden
                     # chain-of-thought while keeping the answer grounded.
                     reasoning_effort="default",
+                    max_output_tokens=1200,
                     payload={
                         "scenario": request.model_dump(),
                         "parsed_shock": shock,

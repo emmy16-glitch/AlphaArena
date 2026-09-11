@@ -230,6 +230,7 @@ class QwenClient:
         system: str,
         payload: dict[str, Any],
         reasoning_effort_override: str | None = None,
+        max_output_tokens_override: int | None = None,
     ) -> dict[str, Any]:
         serialized_payload = _serialize_prompt_payload(payload)
         body: dict[str, Any] = {
@@ -242,9 +243,9 @@ class QwenClient:
             ],
         }
         if self.provider in {"groq", "openai"}:
-            body["max_completion_tokens"] = max(1, settings.qwen_max_output_tokens)
+            body["max_completion_tokens"] = max(1, max_output_tokens_override or settings.qwen_max_output_tokens)
         else:
-            body["max_tokens"] = max(1, settings.qwen_max_output_tokens)
+            body["max_tokens"] = max(1, max_output_tokens_override or settings.qwen_max_output_tokens)
         if self.provider == "groq":
             # Groq JSON mode rejects raw reasoning. Hidden keeps chain-of-thought
             # out of message.content and out of user-visible responses.
@@ -292,6 +293,7 @@ class QwenClient:
         system: str,
         payload: dict[str, Any],
         reasoning_effort: str | None = None,
+        max_output_tokens: int | None = None,
     ) -> dict[str, Any] | None:
         if not self.enabled:
             return None
@@ -316,6 +318,7 @@ class QwenClient:
                 system=system,
                 payload=payload,
                 reasoning_effort_override=fallback_effort,
+                max_output_tokens_override=max_output_tokens,
             )
             try:
                 await qwen_budget.acquire_attempt()
