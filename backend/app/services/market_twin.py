@@ -170,7 +170,7 @@ class MarketTwinService:
             "model_source": model_source,
             "sources": {
                 "market": "bitget-live",
-                "qwen": "connected" if ai else ("configured-error" if qwen.enabled else "deterministic-fallback"),
+                "qwen": "connected" if ai else "deterministic-fallback",
                 "vibe": "connected" if vibe.get("connected") else ("unavailable" if vibe_research.enabled else "not-configured"),
                 "signal": "connected" if signal.get("connected") else "unavailable",
             },
