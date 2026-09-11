@@ -81,9 +81,9 @@ The default hackathon configuration is intentionally conservative:
 | Arena starting balance | `$100,000` virtual |
 | Real-money trading | Disabled / no execution route |
 | Scheduled background LLM calls | `0` |
-| Qwen attempts per user request | `1` |
+| Qwen attempts per user request | `2` |
 | Qwen application-side attempts/day | `12` per API process |
-| Qwen maximum output | `1,400` tokens/attempt |
+| Qwen maximum output | `3,000` tokens/attempt |
 | Vibe research cache | `900s` |
 | Bitget Signal cache | `300s` |
 | Vibe shell tools | Disabled |

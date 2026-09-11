@@ -33,7 +33,7 @@ export default function Landing({ onEnter }: { onEnter: (view: string) => void }
       </header>
 
       <div className="overflow-hidden border-b border-[#E7E5DE] bg-white/70">
-        <div className="marquee-track flex w-max items-center gap-9 py-3">
+        <div className="marquee-track flex w-max items-center gap-9 py-3" aria-hidden="true">
           {tape.map((a, i) => (
             <div key={`${a.symbol}-${i}`} className="flex items-center gap-3 whitespace-nowrap text-[12px]">
               <span className="font-semibold">{a.symbol}</span>

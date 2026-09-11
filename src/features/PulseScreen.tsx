@@ -62,7 +62,7 @@ export default function PulseScreen({ onNav }: { onNav: Nav }) {
       </div>
 
       <div className="mt-8 rounded-2xl border border-[#E7E5DE] bg-white px-4 py-3">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search assets or market changes" className="w-full bg-transparent text-[14px] outline-none placeholder:text-[#B9B7B0]" />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search assets or market changes" aria-label="Search assets or market changes" className="w-full bg-transparent text-[14px] outline-none placeholder:text-[#B9B7B0]" />
       </div>
       {error && <p className="mt-2 text-[11px] text-[#9A6B00]">Live Pulse is unavailable: {error}. Preview rows remain clearly marked.</p>}
 

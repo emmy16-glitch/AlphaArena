@@ -166,6 +166,26 @@ Not all integrations have the same importance.
 
 This is intentional graceful degradation, not silent substitution.
 
+### Bitget Signal two-level status
+
+Bitget Signal reports two different statuses that must not be confused:
+
+- `/api/integrations/diagnostics` reports `connected: true` when the Signal
+  MCP endpoint answers `tools/list` (a single lightweight call, ~3s).
+  This means the endpoint is reachable and tools are advertised.
+- NightWatch/MarketTwin responses report `signal: "unavailable"` when the
+  full `snapshot()` (one `has_tools` check plus up to seven tool calls)
+  does not finish inside the 4s per-request budget
+  (`asyncio.wait_for(..., timeout=4)` in `nightwatch.py` / `market_twin.py`).
+
+Measured 2026-09-11 against the public Signal MCP: `tools/list` ~2.6s,
+but individual tool calls take ~15-21s each, so a full snapshot takes
+~23s and always exceeds the 4s budget. The per-request `unavailable`
+label is therefore the normal case with this upstream, not a regression:
+macro/news context is omitted and the deterministic core analysis remains.
+Raising the per-request timeout to ~25s would hold user requests open
+and is deliberately not done; the timeout keeps worst-case latency bounded.
+
 ## Security/deployment boundaries
 
 - No Bitget exchange API secret is required for the current public-market product.
