@@ -32,10 +32,10 @@ class ArenaService:
         # same free capital and oversubscribing the virtual portfolio.
         self._create_lock = asyncio.Lock()
 
-    async def create_battle(self, request: Any) -> dict[str, Any]:
+    async def create_battle(self, request: Any, player_id: str = "guest_default") -> dict[str, Any]:
         async with self._create_lock:
             if request.user_side != "WAIT":
-                portfolio = await self.portfolio()
+                portfolio = await self.portfolio(player_id)
                 free = float(portfolio["free_capital"])
                 if free <= 0:
                     raise ArenaError("Virtual stake exceeds free virtual capital $0")
@@ -48,6 +48,7 @@ class ArenaService:
             now = datetime.now(timezone.utc)
             battle = {
                 "id": f"battle_{uuid4().hex[:12]}",
+                "player_id": player_id,
                 "symbol": request.symbol,
                 "thesis": request.thesis,
                 "user_side": request.user_side,
@@ -93,8 +94,8 @@ class ArenaService:
         await store.save("battles", str(battle["id"]), battle)
         return battle
 
-    async def list_battles(self) -> list[dict[str, Any]]:
-        battles = await store.list("battles")
+    async def list_battles(self, player_id: str = "guest_default") -> list[dict[str, Any]]:
+        battles = [battle for battle in await store.list("battles") if str(battle.get("player_id") or "guest_default") == player_id]
         if not battles:
             return []
         live_symbols = {str(b["symbol"]) for b in battles if b.get("status") != "settled"}
@@ -111,9 +112,9 @@ class ArenaService:
         refreshed.sort(key=lambda row: str(row.get("created_at", "")), reverse=True)
         return refreshed
 
-    async def get_battle(self, battle_id: str) -> dict[str, Any] | None:
+    async def get_battle(self, battle_id: str, player_id: str = "guest_default") -> dict[str, Any] | None:
         battle = await store.get("battles", battle_id)
-        if battle is None:
+        if battle is None or str(battle.get("player_id") or "guest_default") != player_id:
             return None
         price_map: dict[str, float] = {}
         if battle.get("status") != "settled":
@@ -124,8 +125,8 @@ class ArenaService:
                 pass
         return await self._refresh(dict(battle), price_map)
 
-    async def portfolio(self) -> dict[str, Any]:
-        battles = await self.list_battles()
+    async def portfolio(self, player_id: str = "guest_default") -> dict[str, Any]:
+        battles = await self.list_battles(player_id)
         starting = float(settings.arena_starting_capital)
         deployed = sum(
             float(b["stake"])
@@ -148,8 +149,8 @@ class ArenaService:
             "settled_battles": sum(1 for b in battles if b["status"] == "settled"),
         }
 
-    async def leaderboard(self) -> list[dict[str, Any]]:
-        battles = await self.list_battles()
+    async def leaderboard(self, player_id: str = "guest_default") -> list[dict[str, Any]]:
+        battles = await self.list_battles(player_id)
         if not battles:
             return []
 

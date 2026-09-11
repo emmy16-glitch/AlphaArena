@@ -85,7 +85,7 @@ export default function PulseScreen({ onNav }: { onNav: Nav }) {
         </section>
       )}
 
-      <div className="mt-10 flex items-center justify-between"><h2 className="text-[20px] font-semibold tracking-[-0.025em]">Signals worth a second look</h2><span className="text-[11px] text-[#8A8A84]">{live ? 'Derived from Bitget Reality market data' : 'Design preview'}</span></div>
+      <div className="mt-10 flex items-center justify-between"><h2 className="text-[20px] font-semibold tracking-[-0.025em]">Signals worth a second look</h2><span className="text-[11px] text-[#8A8A84]">{live ? 'Derived from live market data' : 'Design preview'}</span></div>
       <div className="mt-3 divide-y divide-[#E7E5DE] border-y border-[#E7E5DE]">
         {visible.map((event) => {
           const asset = assets.find((item) => item.symbol === event.symbol);

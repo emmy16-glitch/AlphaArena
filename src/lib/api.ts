@@ -20,6 +20,16 @@ function defaultMessage(status: number): string {
   return 'We couldn’t complete that action. Check your entries and try again.';
 }
 
+const GUEST_PLAYER_KEY = 'alphaarena.guest-player-id';
+
+function guestPlayerId(): string {
+  const existing = window.localStorage.getItem(GUEST_PLAYER_KEY);
+  if (existing) return existing;
+  const id = `guest_${typeof crypto.randomUUID === 'function' ? crypto.randomUUID().replace(/-/g, '') : Math.random().toString(36).slice(2)}`;
+  window.localStorage.setItem(GUEST_PLAYER_KEY, id);
+  return id;
+}
+
 function humanMessage(status: number, body: ApiProblem | null): string {
   const problem = body?.error;
   if (problem?.message && typeof problem.message === 'string') {
@@ -48,6 +58,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit, timeoutMs 
       signal: controller.signal,
       headers: {
         Accept: 'application/json',
+        'X-Player-ID': guestPlayerId(),
         ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
         ...(init?.headers || {}),
       },

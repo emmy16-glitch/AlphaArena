@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -49,6 +49,14 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+def _player_id(value: str | None) -> str:
+    """Return a stable anonymous player key; signup is intentionally optional."""
+    candidate = (value or "").strip()
+    if not candidate or len(candidate) > 100 or not candidate.startswith("guest_"):
+        return "guest_default"
+    return candidate
 
 
 def _problem(status: int, code: str, message: str, action: str, retryable: bool = False) -> JSONResponse:
@@ -275,9 +283,9 @@ async def scenario_history() -> dict[str, object]:
 
 
 @app.post("/api/arena/battles")
-async def create_battle(request: BattleCreateRequest) -> dict[str, object]:
+async def create_battle(request: BattleCreateRequest, x_player_id: str | None = Header(default=None)) -> dict[str, object]:
     try:
-        return {"data": await arena_service.create_battle(request)}
+        return {"data": await arena_service.create_battle(request, _player_id(x_player_id))}
     except ArenaError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except BitgetError as exc:
@@ -285,21 +293,21 @@ async def create_battle(request: BattleCreateRequest) -> dict[str, object]:
 
 
 @app.get("/api/arena/battles")
-async def list_battles() -> dict[str, object]:
-    return {"data": await arena_service.list_battles()}
+async def list_battles(x_player_id: str | None = Header(default=None)) -> dict[str, object]:
+    return {"data": await arena_service.list_battles(_player_id(x_player_id))}
 
 
 @app.get("/api/arena/battles/{battle_id}")
-async def get_battle(battle_id: str) -> dict[str, object]:
-    battle = await arena_service.get_battle(battle_id)
+async def get_battle(battle_id: str, x_player_id: str | None = Header(default=None)) -> dict[str, object]:
+    battle = await arena_service.get_battle(battle_id, _player_id(x_player_id))
     if battle is None:
         raise HTTPException(status_code=404, detail="Battle not found")
     return {"data": battle}
 
 
 @app.post("/api/arena/battles/{battle_id}/review")
-async def review_battle(battle_id: str) -> dict[str, object]:
-    battle = await arena_service.get_battle(battle_id)
+async def review_battle(battle_id: str, x_player_id: str | None = Header(default=None)) -> dict[str, object]:
+    battle = await arena_service.get_battle(battle_id, _player_id(x_player_id))
     if battle is None:
         raise HTTPException(status_code=404, detail="Battle not found")
     if battle.get("status") != "settled":
@@ -308,13 +316,13 @@ async def review_battle(battle_id: str) -> dict[str, object]:
 
 
 @app.get("/api/arena/portfolio")
-async def portfolio() -> dict[str, object]:
-    return {"data": await arena_service.portfolio()}
+async def portfolio(x_player_id: str | None = Header(default=None)) -> dict[str, object]:
+    return {"data": await arena_service.portfolio(_player_id(x_player_id))}
 
 
 @app.get("/api/arena/leaderboard")
-async def leaderboard() -> dict[str, object]:
-    return {"data": await arena_service.leaderboard()}
+async def leaderboard(x_player_id: str | None = Header(default=None)) -> dict[str, object]:
+    return {"data": await arena_service.leaderboard(_player_id(x_player_id))}
 
 
 @app.post("/api/traders")

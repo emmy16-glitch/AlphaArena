@@ -9,18 +9,19 @@ test('NightWatch turns a thesis into an evidence-first result', async ({ page })
   await page.getByRole('button', { name: /Stress-test my idea/i }).click();
   await expect(page.getByText('3 · NightWatch result')).toBeVisible();
   await expect(page.getByRole('heading', { name: /idea survives/i })).toBeVisible();
-  await expect(page.getByText(/This thesis fails if/i)).toBeVisible();
-  await expect(page.getByText(/bitget-live/i)).toBeVisible();
+  await expect(page.getByText(/What would weaken this idea/i)).toBeVisible();
+  await expect(page.locator('body')).not.toContainText(/bitget-live|Vibe-Trading|Qwen|deterministic/i);
 });
 
-test('MarketTwin runs a transparent scenario with model provenance', async ({ page }) => {
+test('MarketTwin runs a transparent scenario with plain-language evidence status', async ({ page }) => {
   await mockApi(page);
   await page.goto('/#/lab');
   await page.getByLabel('1 · What should change?').fill('What if Nasdaq falls 5% before the U.S. open?');
   await page.getByRole('button', { name: 'Run scenario from prompt', exact: true }).click();
   await expect(page.getByText(/3 · nasdaq stress/i)).toBeVisible();
-  await expect(page.getByText(/Model source: Vibe-Trading historical calibration/i)).toBeVisible();
+  await expect(page.getByText(/Data and explanation status/i)).toBeVisible();
   await expect(page.getByText(/not a forecast/i).first()).toBeVisible();
+  await expect(page.locator('body')).not.toContainText(/Model source|Vibe-Trading|Qwen|bitget-live|deterministic/i);
 });
 
 test('MarketTwin progressive disclosures and challenge flow preserve the original result', async ({ page }) => {

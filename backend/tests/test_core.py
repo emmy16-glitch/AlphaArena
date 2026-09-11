@@ -137,6 +137,33 @@ async def test_concurrent_battles_cannot_oversubscribe_virtual_capital(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_guest_players_have_separate_virtual_portfolios(monkeypatch: pytest.MonkeyPatch) -> None:
+    await store.clear_memory()
+
+    async def fake_asset(symbol: str) -> dict[str, object]:
+        return {"symbol": symbol, "price": 100.0}
+
+    monkeypatch.setattr(arena_module.bitget_market, "get_asset", fake_asset)
+    request = SimpleNamespace(
+        symbol="rNVDA",
+        user_side="LONG",
+        ai_side="WAIT",
+        thesis="A separate guest thesis",
+        stake=60_000.0,
+        duration_hours=24,
+        opponent="NightWatch",
+    )
+    await arena_service.create_battle(request, "guest_alice")
+    await arena_service.create_battle(request, "guest_bob")
+    alice = await arena_service.portfolio("guest_alice")
+    bob = await arena_service.portfolio("guest_bob")
+    assert alice["deployed_capital"] == 60_000.0
+    assert bob["deployed_capital"] == 60_000.0
+    assert len(await arena_service.list_battles("guest_alice")) == 1
+    assert len(await arena_service.list_battles("guest_bob")) == 1
+
+
+@pytest.mark.asyncio
 async def test_budget_status_is_explicit_and_conservative() -> None:
     await qwen_budget.reset_for_tests()
     status = await qwen_budget.status()

@@ -38,11 +38,11 @@ export default function ConnectedAsset({ symbol, onNav }: { symbol: string; onNa
     <div className="fade-up">
       <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
         <div>
-          <MicroLabel>Reality asset · Bitget</MicroLabel>
+          <MicroLabel>Market asset</MicroLabel>
           <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-2"><h1 className="text-[48px] font-semibold tracking-[-0.055em] md:text-[64px]">{asset.symbol}</h1><span className="text-[16px] text-[#8A8A84]">{asset.name}</span></div>
           <div className="mt-3 flex items-baseline gap-4"><span className="mono-num text-[30px] font-semibold">${fmtPrice(asset.price)}</span><Pnl value={asset.changePct} className="text-[14px]" /></div>
         </div>
-        <div className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${status === 'live' ? 'bg-[#0D7A4F]' : 'bg-[#9A6B00]'}`} /><span className="text-[11px] text-[#8A8A84]">{status === 'live' ? 'Live Bitget market feed' : 'Preview until market API connects'}</span></div>
+        <div className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${status === 'live' ? 'bg-[#0D7A4F]' : 'bg-[#9A6B00]'}`} /><span className="text-[11px] text-[#8A8A84]">{status === 'live' ? 'Live market prices' : 'Market prices are temporarily limited'}</span></div>
       </div>
 
       <section className="mt-8 overflow-hidden rounded-[28px] border border-[#D9D7CF] bg-white">
