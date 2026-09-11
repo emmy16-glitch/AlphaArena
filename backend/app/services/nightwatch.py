@@ -12,20 +12,13 @@ from app.services.signal import bitget_signal
 from app.services.vibe import vibe_research
 
 
-SYSTEM_PROMPT = """You are NightWatch, the adversarial decision-stress engine inside AlphaArena.
-You do NOT give financial advice and you do NOT place trades. The human decides.
-You receive a user's trade thesis plus live Bitget Reality market data, deterministic risk metrics,
-Vibe-Trading U.S.-equity research when available, and Bitget Signal macro/news context when available.
-Challenge the thesis from opposing angles and return ONLY valid JSON.
-Never invent a price, filing, headline, historical event, probability, statistic, or source not present in evidence.
-Treat Vibe-Trading mechanically-selected analogues as observations, never predictions.
-If evidence is missing, say so. Prefer falsifiable invalidation conditions.
-Required keys: headline, summary, verdict (LONG|SHORT|WAIT), supports, objections,
-invalidation_conditions, analogues, agents. supports/objections are arrays of objects with title, detail,
-source, strength (low|medium|high). analogues are objects with label,outcome,relevance. agents are objects
-with role,stance (support|oppose|neutral),confidence (0-100),summary,evidence (array of strings).
-Include roles: Bull, Bear, Risk, Historical, Evidence Skeptic, Chief Critic.
-"""
+SYSTEM_PROMPT = """You are NightWatch, an adversarial thesis checker. Do not give financial advice or place trades.
+Use only the supplied evidence; never invent prices, news, filings, statistics, history, probabilities, or sources.
+Return exactly one concise JSON object with no markdown. Required keys: headline, summary, verdict, supports,
+objections, invalidation_conditions, analogues, agents. verdict is LONG, SHORT, or WAIT. supports and objections
+contain at most 3 objects with title, detail, source, strength. analogues contain at most 3 objects with label,
+outcome, relevance. agents contain at most 6 objects with role, stance, confidence, summary, evidence. If evidence
+is missing, say so. Treat historical analogues as observations, never forecasts."""
 
 
 def _safe_list(value: Any) -> list[Any]:
@@ -123,6 +116,28 @@ def _vibe_evidence(vibe: dict[str, Any], current_change: float) -> tuple[list[di
     return supports, objections, analogues
 
 
+def _model_vibe_context(vibe: dict[str, Any]) -> dict[str, Any]:
+    """Send computed research facts, not the raw historical time-series dump."""
+
+    return {
+        "connected": bool(vibe.get("connected")),
+        "ticker": vibe.get("ticker"),
+        "historical_stats": vibe.get("historical_stats", {}),
+        "analogues": vibe.get("analogues", [])[:5],
+        "provenance": vibe.get("provenance", {}),
+        "errors": vibe.get("errors", [])[:5],
+    }
+
+
+def _model_signal_context(signal: dict[str, Any]) -> dict[str, Any]:
+    evidence = signal.get("evidence") if isinstance(signal.get("evidence"), dict) else {}
+    return {
+        "connected": bool(signal.get("connected")),
+        "evidence": {str(key): str(value)[:900] for key, value in list(evidence.items())[:4]},
+        "errors": signal.get("errors", [])[:5],
+    }
+
+
 class NightWatchService:
     async def _external_context(self, symbol: str) -> tuple[dict[str, Any], dict[str, Any]]:
         async def vibe_task() -> dict[str, Any]:
@@ -213,8 +228,8 @@ class NightWatchService:
                     "deterministic_metrics": metrics,
                     "deterministic_resilience": resilience,
                     "stress_scenarios": stress,
-                    "vibe_trading": vibe,
-                    "bitget_signal": signal,
+                    "vibe_trading": _model_vibe_context(vibe),
+                    "bitget_signal": _model_signal_context(signal),
                 })
             except QwenError:
                 ai = None

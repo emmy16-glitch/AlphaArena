@@ -12,14 +12,20 @@ from app.services.signal import bitget_signal
 from app.services.vibe import vibe_research
 
 
-TWIN_SYSTEM_PROMPT = """You are MarketTwin's scenario explainer inside AlphaArena.
-The numerical impacts were already calculated by deterministic code. Never change, replace, or invent those numbers.
-Explain the causal chain and identify evidence that would make the scenario less or more relevant.
-Historical analogues supplied by Vibe-Trading are mechanically selected observations, not forecasts.
-If verified history is absent, do not invent historical events or probabilities.
-Return ONLY JSON with keys: explanation and analogues. analogues is an array of objects
-{label,outcome,relevance}; it may be empty. This is scenario analysis, not financial advice.
-"""
+TWIN_SYSTEM_PROMPT = """You are MarketTwin's scenario explainer. Do not give financial advice.
+The supplied impact numbers were calculated by deterministic code: never change or invent them.
+Use only supplied evidence and treat historical analogues as observations, not forecasts.
+Return exactly one concise JSON object with no markdown: explanation (under 500 characters) and analogues
+(at most 3 objects with label, outcome, relevance). If history is missing, return an empty analogue list."""
+
+
+def _model_signal_context(signal: dict[str, Any]) -> dict[str, Any]:
+    evidence = signal.get("evidence") if isinstance(signal.get("evidence"), dict) else {}
+    return {
+        "connected": bool(signal.get("connected")),
+        "evidence": {str(key): str(value)[:900] for key, value in list(evidence.items())[:4]},
+        "errors": signal.get("errors", [])[:5],
+    }
 
 
 def _historical_impact(
@@ -117,7 +123,7 @@ class MarketTwinService:
                         "parsed_shock": shock,
                         "calculated_impacts": impacts,
                         "vibe_history": vibe,
-                        "bitget_signal": signal,
+                        "bitget_signal": _model_signal_context(signal),
                     },
                 )
             except QwenError:

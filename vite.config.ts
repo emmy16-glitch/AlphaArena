@@ -11,6 +11,14 @@ export default defineConfig({
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') },
   },
-  server: { host: '127.0.0.1' },
+  server: {
+    host: '127.0.0.1',
+    // The repository also contains Python environments for the API and Vibe
+    // sidecar. Watching their tens of thousands of files exhausts Linux's
+    // inotify limit and can take down the dev server during browser tests.
+    watch: {
+      ignored: ['**/.venv/**', '**/.venv-vibe/**', '**/node_modules/**', '**/test-results/**', '**/playwright-report/**'],
+    },
+  },
   build: { target: 'es2020', sourcemap: false },
 });

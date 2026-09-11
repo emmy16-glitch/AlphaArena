@@ -142,7 +142,7 @@ async def test_budget_status_is_explicit_and_conservative() -> None:
     status = await qwen_budget.status()
     assert int(status["daily_attempt_limit"]) >= 0
     assert int(status["max_attempts_per_request"]) == 3
-    assert int(status["max_output_tokens_per_attempt"]) <= 2000
+    assert int(status["max_output_tokens_per_attempt"]) <= 4000
     assert "provider billing" in str(status["accounting_scope"])
 
 

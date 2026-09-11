@@ -30,6 +30,67 @@ _USER_MESSAGES = {
 }
 
 
+def _compact_prompt_value(
+    value: object,
+    *,
+    string_limit: int,
+    list_limit: int,
+    key_limit: int,
+) -> object:
+    """Keep external research context useful without sending raw data dumps."""
+
+    if isinstance(value, str):
+        return value if len(value) <= string_limit else value[:string_limit] + "…"
+    if isinstance(value, list):
+        return [
+            _compact_prompt_value(
+                item,
+                string_limit=string_limit,
+                list_limit=list_limit,
+                key_limit=key_limit,
+            )
+            for item in value[:list_limit]
+        ]
+    if isinstance(value, dict):
+        return {
+            str(key): _compact_prompt_value(
+                item,
+                string_limit=string_limit,
+                list_limit=list_limit,
+                key_limit=key_limit,
+            )
+            for key, item in list(value.items())[:key_limit]
+        }
+    return value
+
+
+def _serialize_prompt_payload(payload: dict[str, Any]) -> str:
+    """Serialize a bounded evidence view, retrying with a tighter cap if needed."""
+
+    for string_limit, list_limit, key_limit in ((1200, 16, 24), (600, 6, 16), (300, 3, 8)):
+        compacted = _compact_prompt_value(
+            payload,
+            string_limit=string_limit,
+            list_limit=list_limit,
+            key_limit=key_limit,
+        )
+        serialized = json.dumps(compacted, ensure_ascii=False, default=str)
+        # Groq's free Qwen tier has an 8K token-per-minute envelope. Keep the
+        # evidence prompt comfortably below it so high-effort reasoning still
+        # has room for its completion tokens.
+        if len(serialized) <= 12_000:
+            return serialized
+    # Never cut the JSON string itself: malformed input data can make a
+    # reasoning model fail its own JSON-mode response validation.
+    return json.dumps(
+        {
+            "notice": "External evidence was compacted to fit the provider budget.",
+            "evidence_preview": serialized[:6_000],
+        },
+        ensure_ascii=False,
+    )
+
+
 class QwenError(RuntimeError):
     """Safe model failure with a machine-readable internal category."""
 
@@ -164,7 +225,7 @@ class QwenClient:
         )
 
     def _request_body(self, *, system: str, payload: dict[str, Any]) -> dict[str, Any]:
-        serialized_payload = json.dumps(payload, ensure_ascii=False, default=str)
+        serialized_payload = _serialize_prompt_payload(payload)
         body: dict[str, Any] = {
             "model": settings.qwen_model,
             "temperature": 0.6,
