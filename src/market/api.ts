@@ -1,3 +1,5 @@
+import { apiData } from '../lib/api';
+
 export type ApiMarketAsset = {
   symbol: string;
   exchangeSymbol: string;
@@ -10,22 +12,15 @@ export type ApiMarketAsset = {
   spark: number[];
   timestamp: number;
   source: 'bitget';
+  isReality?: boolean;
+  bid?: number | null;
+  ask?: number | null;
+  spreadBps?: number;
+  turnover24h?: number;
+  platformTurnover24h?: number;
 };
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
+export const fetchMarketAssets = () => apiData<ApiMarketAsset[]>('/api/market/assets', undefined, 15_000);
 
-async function request<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, { headers: { Accept: 'application/json' } });
-  if (!response.ok) throw new Error(`AlphaArena API ${response.status}: ${response.statusText}`);
-  return response.json() as Promise<T>;
-}
-
-export async function fetchMarketAssets(): Promise<ApiMarketAsset[]> {
-  const payload = await request<{ data: ApiMarketAsset[] }>('/api/market/assets');
-  return payload.data;
-}
-
-export async function fetchMarketAsset(symbol: string): Promise<ApiMarketAsset> {
-  const payload = await request<{ data: ApiMarketAsset }>(`/api/market/assets/${encodeURIComponent(symbol)}`);
-  return payload.data;
-}
+export const fetchMarketAsset = (symbol: string) =>
+  apiData<ApiMarketAsset>(`/api/market/assets/${encodeURIComponent(symbol)}`, undefined, 15_000);

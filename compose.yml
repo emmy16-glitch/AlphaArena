@@ -1,0 +1,39 @@
+services:
+  vibe:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.vibe
+    environment:
+      VIBE_TRADING_ENABLE_SHELL_TOOLS: "0"
+      API_ALLOWED_HOSTS: "vibe,localhost,127.0.0.1"
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      VIBE_MCP_URL: "http://vibe:8900/mcp"
+      VIBE_CACHE_SECONDS: "${VIBE_CACHE_SECONDS:-900}"
+      BITGET_SIGNAL_MCP_URL: "${BITGET_SIGNAL_MCP_URL:-https://datahub.noxiaohao.com/mcp}"
+      SIGNAL_CACHE_SECONDS: "${SIGNAL_CACHE_SECONDS:-300}"
+      FRONTEND_ORIGINS: "${FRONTEND_ORIGINS:-http://localhost:5173}"
+      AI_PROVIDER: "${AI_PROVIDER:-groq}"
+      QWEN_API_KEY: "${QWEN_API_KEY:-}"
+      QWEN_BASE_URL: "${QWEN_BASE_URL:-https://api.groq.com/openai/v1}"
+      QWEN_MODEL: "${QWEN_MODEL:-qwen/qwen3.8-27b}"
+      QWEN_DAILY_ATTEMPT_LIMIT: "${QWEN_DAILY_ATTEMPT_LIMIT:-12}"
+      QWEN_MAX_OUTPUT_TOKENS: "${QWEN_MAX_OUTPUT_TOKENS:-3000}"
+      QWEN_MAX_ATTEMPTS_PER_REQUEST: "${QWEN_MAX_ATTEMPTS_PER_REQUEST:-2}"
+      QWEN_RETRY_MAX_WAIT_SECONDS: "${QWEN_RETRY_MAX_WAIT_SECONDS:-10}"
+      QWEN_TIMEOUT_SECONDS: "${QWEN_TIMEOUT_SECONDS:-35}"
+      MONGODB_URI: "${MONGODB_URI:-}"
+      MONGODB_DB: "${MONGODB_DB:-alphaarena}"
+      ARENA_STARTING_CAPITAL: "${ARENA_STARTING_CAPITAL:-100000}"
+      WATCHER_ENABLED: "${WATCHER_ENABLED:-true}"
+      WATCHER_INTERVAL_SECONDS: "${WATCHER_INTERVAL_SECONDS:-60}"
+    depends_on:
+      - vibe
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

@@ -1,0 +1,3 @@
+# Vibe-Trading runs as a separate research-only MCP sidecar.
+# Pinning avoids an upstream release changing tool schemas during the hackathon.
+vibe-trading-ai==0.1.15

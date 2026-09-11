@@ -1,7 +1,6 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
+import { apiData } from '../lib/api';
 
 export type Direction = 'LONG' | 'SHORT' | 'WAIT';
-
 export type SourceStatus = { market: string; qwen: string; vibe: string; signal: string };
 export type EvidenceItem = { title: string; detail: string; source: string; strength: 'low'|'medium'|'high' };
 export type AgentView = { role: string; stance: 'support'|'oppose'|'neutral'; confidence: number; summary: string; evidence: string[] };
@@ -16,11 +15,15 @@ export type NightWatchReport = {
   agents: AgentView[]; sources: SourceStatus;
 };
 
+export type TwinImpact = {
+  symbol: string; current_price: number; impact_pct: number; lower_pct: number; upper_pct: number; confidence: number;
+  model?: string | null; beta_to_qqq?: number | null;
+};
+
 export type TwinResponse = {
   id: string; prompt: string; generated_at: string; duration: string;
   shock: { driver: string; category: string; magnitude: number; unit: string; direction: 'up'|'down'|'mixed' };
-  impacts: Array<{ symbol: string; current_price: number; impact_pct: number; lower_pct: number; upper_pct: number; confidence: number }>;
-  explanation: string; analogues: HistoricalAnalogue[]; model_source: string; sources: SourceStatus;
+  impacts: TwinImpact[]; explanation: string; analogues: HistoricalAnalogue[]; model_source: string; sources: SourceStatus;
 };
 
 export type PulseEvent = {
@@ -31,7 +34,8 @@ export type PulseEvent = {
 export type BattleView = {
   id: string; symbol: string; thesis: string; user_side: Direction; ai_side: Direction; opponent: string;
   stake: number; entry_price: number; current_price: number; user_pnl_pct: number; ai_pnl_pct: number;
-  created_at: string; expires_at: string; status: 'live'|'settled'; source: string;
+  created_at: string; expires_at: string; settled_at?: string | null; settled_price?: number | null;
+  status: 'live'|'settled'; source: string;
 };
 
 export type PortfolioSummary = {
@@ -51,37 +55,48 @@ export type BattleReview = {
   lesson: string; what_worked: string[]; what_failed: string[]; next_rule: string; source: string;
 };
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...(init?.headers || {}) },
-  });
-  if (!response.ok) {
-    let detail = `${response.status} ${response.statusText}`;
-    try { const body = await response.json(); detail = body.detail || detail; } catch { /* keep status */ }
-    throw new Error(detail);
-  }
-  const payload = await response.json() as { data: T };
-  return payload.data;
-}
+export type VibeSnapshot = {
+  connected: boolean; ticker: string; evidence: Record<string, unknown>; historical_stats: Record<string, unknown>;
+  analogues: HistoricalAnalogue[]; provenance: Record<string, unknown>; errors: string[];
+};
+
+export type BudgetStatus = {
+  virtual_capital: number;
+  real_money_trading: false;
+  background_llm_calls: number;
+  qwen: {
+    configured: boolean;
+    daily_attempt_limit: number;
+    attempts_used_today: number;
+    attempts_remaining_today: number;
+    max_output_tokens_per_attempt: number;
+    max_attempts_per_request: number;
+    resets_at: string;
+    accounting_scope: string;
+  };
+  vibe_trading: { mode: string; shell_tools_enabled: false; cache_seconds: number };
+};
 
 export const productApi = {
-  pulse: () => request<PulseEvent[]>('/api/pulse'),
+  pulse: () => apiData<PulseEvent[]>('/api/pulse', undefined, 20_000),
   nightwatch: (body: { symbol: string; direction: Direction; thesis: string; risk_pct?: number; holding_period?: string }) =>
-    request<NightWatchReport>('/api/nightwatch/analyze', { method: 'POST', body: JSON.stringify(body) }),
-  nightwatchHistory: () => request<NightWatchReport[]>('/api/nightwatch/history'),
+    apiData<NightWatchReport>('/api/nightwatch/analyze', { method: 'POST', body: JSON.stringify(body) }),
+  nightwatchHistory: () => apiData<NightWatchReport[]>('/api/nightwatch/history'),
   simulate: (body: { prompt: string; symbols: string[]; severity: number; duration: string }) =>
-    request<TwinResponse>('/api/twin/simulate', { method: 'POST', body: JSON.stringify(body) }),
-  scenarioHistory: () => request<TwinResponse[]>('/api/twin/history'),
+    apiData<TwinResponse>('/api/twin/simulate', { method: 'POST', body: JSON.stringify(body) }),
+  scenarioHistory: () => apiData<TwinResponse[]>('/api/twin/history'),
   createBattle: (body: { symbol: string; user_side: Direction; ai_side: Direction; thesis: string; stake: number; duration_hours: number; opponent?: string }) =>
-    request<BattleView>('/api/arena/battles', { method: 'POST', body: JSON.stringify(body) }),
-  battles: () => request<BattleView[]>('/api/arena/battles'),
-  battle: (id: string) => request<BattleView>(`/api/arena/battles/${encodeURIComponent(id)}`),
-  reviewBattle: (id: string) => request<BattleReview>(`/api/arena/battles/${encodeURIComponent(id)}/review`, { method: 'POST' }),
-  portfolio: () => request<PortfolioSummary>('/api/arena/portfolio'),
-  leaderboard: () => request<LeaderRow[]>('/api/arena/leaderboard'),
+    apiData<BattleView>('/api/arena/battles', { method: 'POST', body: JSON.stringify(body) }),
+  battles: () => apiData<BattleView[]>('/api/arena/battles'),
+  battle: (id: string) => apiData<BattleView>(`/api/arena/battles/${encodeURIComponent(id)}`),
+  reviewBattle: (id: string) => apiData<BattleReview>(`/api/arena/battles/${encodeURIComponent(id)}/review`, { method: 'POST' }),
+  portfolio: () => apiData<PortfolioSummary>('/api/arena/portfolio'),
+  leaderboard: () => apiData<LeaderRow[]>('/api/arena/leaderboard'),
   createTrader: (body: { name: string; style: TraderProfile['style']; risk_appetite: number; holding_period: TraderProfile['holding_period']; assets: string[] }) =>
-    request<TraderProfile>('/api/traders', { method: 'POST', body: JSON.stringify(body) }),
-  traders: () => request<TraderProfile[]>('/api/traders'),
-  integrations: () => request<Record<string, { configured: boolean; mode?: string; model?: string; fallback?: string }>>('/api/integrations/status'),
+    apiData<TraderProfile>('/api/traders', { method: 'POST', body: JSON.stringify(body) }),
+  traders: () => apiData<TraderProfile[]>('/api/traders'),
+  vibeResearch: (symbol: string) => apiData<VibeSnapshot>(`/api/research/vibe/${encodeURIComponent(symbol)}`),
+  integrations: () => apiData<Record<string, unknown>>('/api/integrations/status'),
+  diagnostics: () => apiData<Record<string, unknown>>('/api/integrations/diagnostics'),
+  budget: () => apiData<BudgetStatus>('/api/budget/status'),
 };
