@@ -20,6 +20,7 @@ from app.services.pulse import pulse_service
 from app.services.qwen import qwen
 from app.services.review import review_service
 from app.services.signal import bitget_signal
+from app.services.signal_warmer import signal_warmer
 from app.services.storage import store
 from app.services.traders import trader_service
 from app.services.vibe import vibe_research
@@ -29,9 +30,11 @@ from app.services.watcher import pulse_watcher
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await pulse_watcher.start()
+    await signal_warmer.start()
     try:
         yield
     finally:
+        await signal_warmer.stop()
         await pulse_watcher.stop()
 
 
@@ -133,6 +136,7 @@ async def health() -> dict[str, object]:
         "version": "0.5.0",
         "storage": store.mode,
         "watcher": pulse_watcher.status,
+        "signal_warmer": signal_warmer.status,
     }
 
 
@@ -188,6 +192,7 @@ async def integration_diagnostics() -> dict[str, object]:
             "qwen": {**qwen.diagnostics(), "budget": await qwen_budget.status()},
             "storage": {"mode": store.mode},
             "watcher": pulse_watcher.status,
+            "signal_warmer": signal_warmer.status,
         }
     }
 

@@ -199,6 +199,51 @@ def test_background_watcher_never_imports_qwen() -> None:
     assert "qwen" not in watcher.lower()
 
 
+def test_signal_warmer_never_invokes_llm() -> None:
+    warmer = (Path(__file__).resolve().parents[1] / "app" / "services" / "signal_warmer.py").read_text(
+        encoding="utf-8"
+    )
+    assert "qwen" not in warmer.lower()
+
+
+async def test_signal_warmer_counts_connected_symbols(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services import signal_warmer as warmer_module
+
+    async def fake_snapshot(symbol: str) -> dict[str, object]:
+        if symbol == "rNVDA":
+            raise RuntimeError("upstream down")
+        return {"connected": symbol != "rTSLA", "evidence": {}, "errors": []}
+
+    monkeypatch.setattr(warmer_module.bitget_signal, "snapshot", fake_snapshot)
+    warmer = warmer_module.SignalWarmer()
+    warmed = await warmer.run_once()
+    assert warmed == 4
+    assert warmer.status["warmed_symbols"] == 4
+    assert warmer.status["last_run"] is not None
+
+
+async def test_signal_warmer_start_stop_cycle(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services import signal_warmer as warmer_module
+
+    async def fake_snapshot(symbol: str) -> dict[str, object]:
+        return {"connected": True, "evidence": {}, "errors": []}
+
+    monkeypatch.setattr(warmer_module.bitget_signal, "snapshot", fake_snapshot)
+    monkeypatch.setattr(warmer_module.settings, "signal_cache_seconds", 900)
+    warmer = warmer_module.SignalWarmer()
+    await warmer.start()
+    assert warmer.status["running"] is True
+    await warmer.stop()
+    assert warmer.status["running"] is False
+
+
+def test_signal_snapshot_skips_broken_global_assets_tool() -> None:
+    snapshot_source = (
+        Path(__file__).resolve().parents[1] / "app" / "services" / "signal.py"
+    ).read_text(encoding="utf-8")
+    assert '("global_assets"' not in snapshot_source
+
+
 def test_json_payloads_stay_strict() -> None:
     payload = {"impact": scenario_impact("rQQQ", parse_shock("Nasdaq falls 5%", 60), 60)[0]}
     json.dumps(payload, allow_nan=False)

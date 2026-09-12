@@ -179,12 +179,20 @@ Bitget Signal reports two different statuses that must not be confused:
   (`asyncio.wait_for(..., timeout=4)` in `nightwatch.py` / `market_twin.py`).
 
 Measured 2026-09-11 against the public Signal MCP: `tools/list` ~2.6s,
-but individual tool calls take ~15-21s each, so a full snapshot takes
-~23s and always exceeds the 4s budget. The per-request `unavailable`
-label is therefore the normal case with this upstream, not a regression:
-macro/news context is omitted and the deterministic core analysis remains.
-Raising the per-request timeout to ~25s would hold user requests open
-and is deliberately not done; the timeout keeps worst-case latency bounded.
+but individual tool calls take ~15-21s each, and the `global_assets`
+price tool fails for every symbol (including SPY) after ~16s with an
+empty upstream error, so it is excluded from `snapshot()`. Because a
+full snapshot takes ~20s, it always exceeds the 4s budget. A background
+`SignalWarmer` task (`backend/app/services/signal_warmer.py`, started in
+the API lifespan alongside the Pulse watcher) therefore refreshes every
+supported symbol in parallel ahead of time, so steady-state requests
+serve Signal evidence from cache in milliseconds and report
+`signal: connected`. The per-request `unavailable` label then means the
+cache is cold (just after startup) or the upstream is down — never a
+regression. The warmer performs public MCP reads only; scheduled LLM
+calls remain zero. Raising the per-request timeout to ~25s would hold
+user requests open and is deliberately not done; the timeout keeps
+worst-case latency bounded.
 
 ## Security/deployment boundaries
 

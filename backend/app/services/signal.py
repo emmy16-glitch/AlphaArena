@@ -56,12 +56,12 @@ class BitgetSignalResearch:
             "QQQ": "Nasdaq",
         }.get(ticker, ticker)
         client = MCPHttpClient(settings.bitget_signal_mcp_url, "Bitget Signal")
+        # global_assets price lookups are excluded: the upstream tool fails
+        # them for every symbol (verified with SPY as well as ^NDX/DX-Y.NYB,
+        # 2026-09-11) after ~16s with an empty error. Calling it only burns
+        # the per-request latency budget and adds error noise.
         calls: list[tuple[str, dict[str, Any]]] = [
             ("rates_yields", {"action": "rates_snapshot"}),
-            ("global_assets", {"action": "price", "symbol": "^NDX"}),
-            ("global_assets", {"action": "price", "symbol": "DX-Y.NYB"}),
-            ("global_assets", {"action": "price", "symbol": "^TNX"}),
-            ("global_assets", {"action": "price", "symbol": "^VIX"}),
             ("news_feed", {"action": "latest", "feeds": "cnbc,bbc_world,guardian", "keyword": topic, "limit": 6}),
             ("tradfi_news", {"action": "news", "limit": 6}),
         ]
@@ -81,7 +81,7 @@ class BitgetSignalResearch:
 
         # These are independent public-context lookups. Running them together
         # keeps Signal latency bounded by the slowest source instead of the
-        # sum of seven sequential MCP round trips.
+        # sum of sequential MCP round trips.
         results = await asyncio.gather(*(run_call(index, name, arguments) for index, (name, arguments) in enumerate(calls)))
         evidence: dict[str, Any] = {}
         errors: list[str] = []
