@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
-from app.schemas import BattleCreateRequest, MarketTwinRequest, NightWatchRequest, TraderProfileRequest
+from app.schemas import BattleCreateRequest, MarketTwinRequest, NightWatchRequest, PortfolioStressRequest, TraderProfileRequest
 from app.services.arena import ArenaError, arena_service
 from app.services.bitget import BitgetError, bitget_market
 from app.services.budget import qwen_budget
@@ -287,6 +287,18 @@ async def scenario_history() -> dict[str, object]:
     return {"data": await store.list("scenarios", limit=50)}
 
 
+@app.post("/api/twin/portfolio")
+async def portfolio_stress(request: PortfolioStressRequest) -> dict[str, object]:
+    try:
+        result = await market_twin.simulate_portfolio(request)
+        await store.save("portfolio_scenarios", result["id"], result)
+        return {"data": result}
+    except BitgetError as exc:
+        message = str(exc)
+        status = 404 if message.startswith("Unsupported AlphaArena symbol") else 502
+        raise HTTPException(status_code=status, detail=message) from exc
+
+
 @app.post("/api/arena/battles")
 async def create_battle(request: BattleCreateRequest, x_player_id: str | None = Header(default=None)) -> dict[str, object]:
     try:
@@ -328,6 +340,60 @@ async def portfolio(x_player_id: str | None = Header(default=None)) -> dict[str,
 @app.get("/api/arena/leaderboard")
 async def leaderboard(x_player_id: str | None = Header(default=None)) -> dict[str, object]:
     return {"data": await arena_service.leaderboard(_player_id(x_player_id))}
+
+
+@app.get("/api/track-record")
+async def track_record(x_player_id: str | None = Header(default=None)) -> dict[str, object]:
+    return {"data": await arena_service.track_record(_player_id(x_player_id))}
+
+
+@app.get("/api/arena/export.json")
+async def export_battles_json(x_player_id: str | None = Header(default=None)) -> dict[str, object]:
+    return {"data": await arena_service.export_rows(_player_id(x_player_id))}
+
+
+@app.get("/api/arena/export.csv")
+async def export_battles_csv(x_player_id: str | None = Header(default=None)):
+    from fastapi.responses import PlainTextResponse
+
+    rows = await arena_service.export_rows(_player_id(x_player_id))
+    return PlainTextResponse(
+        arena_service.export_csv(rows),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=alphaarena-paper-log.csv"},
+    )
+
+
+@app.get("/api/arena/battles/{battle_id}/verify")
+async def verify_battle(battle_id: str, x_player_id: str | None = Header(default=None)) -> dict[str, object]:
+    from app.services.arena import verify_battle_hash
+
+    battle = await arena_service.get_battle(battle_id, _player_id(x_player_id))
+    if battle is None:
+        raise HTTPException(status_code=404, detail="Battle not found")
+    return {"data": {"battle_id": battle_id, "verified": verify_battle_hash(battle), "settlement_hash": battle.get("settlement_hash")}}
+
+
+@app.get("/api/research/backtest/{symbol}")
+async def backtest(symbol: str) -> dict[str, object]:
+    from app.services.backtest import backtest_symbol
+
+    if symbol not in {"rNVDA", "rTSLA", "rAAPL", "rMSFT", "rAMD", "rQQQ"}:
+        raise HTTPException(status_code=404, detail="Unsupported AlphaArena symbol")
+    try:
+        return {"data": await backtest_symbol(symbol)}
+    except BitgetError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/twin/playbook/{scenario_id}")
+async def twin_playbook(scenario_id: str) -> dict[str, object]:
+    from app.services.playbook import playbook_config
+
+    scenario = await store.get("scenarios", scenario_id)
+    if scenario is None:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    return {"data": playbook_config(scenario)}
 
 
 @app.post("/api/traders")

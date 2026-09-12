@@ -6,6 +6,8 @@
 - [Budget and safety](BUDGET_AND_SAFETY.md) — paper-capital, model-call and background-cost invariants.
 - [Testing and UX](TESTING_AND_UX.md) — Playwright device/browser matrix and release gate.
 - [Judge demo](JUDGE_DEMO.md) — a truthful three-minute walkthrough and technical Q&A.
+- [Demo mode](DEMO_MODE.md) — what judges see when Bitget Reality is unreachable.
+- [Portfolio stress test](PORTFOLIO_STRESS_TEST.md) — multi-position scenarios over the same deterministic engine.
 - [Release quality checklist](QUALITY_CHECKLIST.md) — the final merge/submission gate.
 
 For the quickest product overview and demo flow, start with the repository [README](../README.md).

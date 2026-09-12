@@ -18,6 +18,23 @@ That produces one connected loop:
 
 **Watch → Challenge → Simulate → Battle → Review → Improve**
 
+### Judging without Bitget Reality access
+
+Bitget notes that Reality market-data availability can depend on whitelist/account access. If live data is unreachable, AlphaArena stays open in a clearly labelled preview state — it never relabels preview data as live.
+
+- **Still judges:** Pulse preview rows (`Preview` / `Design preview`), the full deterministic/paper surface (`GET /api/budget/status`, existing battles, `GET /api/arena/export.json` + `verify_battles.py`, reproducible backtest script).
+- **Fails clearly instead of faking:** NightWatch, MarketTwin and Arena creation need an observed Bitget price, so they return a human retry message (`Live market data or research is taking longer than usual…`) before any virtual capital is consumed.
+- **How to tell:** header shows `Limited market data`, `GET /api/integrations/diagnostics` shows `bitget.connected: false`.
+
+See [docs/DEMO_MODE.md](docs/DEMO_MODE.md).
+
+## Hackathon submission (Track 3: US Stock AI Trading)
+
+1. **Thesis:** traders act on predictions they cannot disprove. AlphaArena makes every thesis falsifiable before capital — real or paper — is risked: explicit invalidation, adversarial objection, deterministic stress ranges, then a frozen paper settlement.
+2. **How it works:** Bitget Reality UTA v3 supplies live rToken prices; Vibe-Trading MCP supplies historical research; deterministic code computes metrics/stress/PnL; Qwen explains only.
+3. **Evidence:** `GET /api/arena/export.json` + `Export CSV` in Arena/Portfolio downloads `timestamp, asset, direction, price, quantity, balance change` plus `settlement_hash`. Verify with `python backend/scripts/verify_battles.py samples/paper-log.json`. Reproducible backtest: `python backend/scripts/generate_backtest_report.py --prices 100,101,99,102 --out /tmp/report.json` (code is the report: `backend/app/services/backtest.py`).
+4. **Take on AI trading:** AI should challenge and monitor, not predict. MarketTwin numbers are code-owned; Playbook export (`Copy Playbook config`) is a pause/review suggestion, never an order.
+
 ## Why this is different
 
 AlphaArena is deliberately not another “AI says BUY” dashboard. It separates facts, models and opinions:

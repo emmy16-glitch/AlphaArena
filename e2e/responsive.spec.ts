@@ -25,7 +25,7 @@ test('landing is clear and the primary action enters the product', async ({ page
 });
 
 test('core screens do not overflow the viewport', async ({ page }) => {
-  for (const view of ['pulse', 'lab', 'arena', 'portfolio', 'leaderboard', 'create']) {
+  for (const view of ['pulse', 'lab', 'arena', 'portfolio', 'leaderboard', 'track-record', 'create']) {
     await page.goto(`/#/${view}`);
     await expect(page.locator('main')).toBeVisible();
     await expectNoHorizontalOverflow(page);

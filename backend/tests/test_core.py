@@ -247,3 +247,108 @@ def test_signal_snapshot_skips_broken_global_assets_tool() -> None:
 def test_json_payloads_stay_strict() -> None:
     payload = {"impact": scenario_impact("rQQQ", parse_shock("Nasdaq falls 5%", 60), 60)[0]}
     json.dumps(payload, allow_nan=False)
+
+
+def test_settlement_hash_is_stable_and_verifiable() -> None:
+    from app.services.arena import battle_hash, verify_battle_hash
+
+    battle = {
+        "id": "battle_hash1",
+        "symbol": "rNVDA",
+        "user_side": "LONG",
+        "ai_side": "WAIT",
+        "stake": 10000.0,
+        "entry_price": 100.0,
+        "settled_price": 110.0,
+        "created_at": "2026-09-10T10:00:00+00:00",
+        "settled_at": "2026-09-11T10:00:00+00:00",
+        "status": "settled",
+        "settlement_hash": None,
+    }
+    hashed = battle_hash(battle)
+    assert len(hashed) == 64
+    battle["settlement_hash"] = hashed
+    assert verify_battle_hash(battle) is True
+    tampered = dict(battle, settled_price=999.0)
+    assert verify_battle_hash(tampered) is False
+
+
+def test_backtest_metrics_are_deterministic() -> None:
+    from app.services.backtest import backtest_metrics
+
+    prices = [100.0, 101.0, 99.0, 102.0, 105.0]
+    first = backtest_metrics(prices)
+    second = backtest_metrics(prices)
+    assert first == second
+    assert first["return_pct"] == 5.0
+    assert first["max_drawdown_pct"] < 0
+    assert "not a prediction" in first["method"] or "no lookahead" in first["method"]
+
+
+def test_playbook_config_never_orders() -> None:
+    from app.services.playbook import playbook_config
+
+    twin = {
+        "shock": {"driver": "Nasdaq 100", "category": "nasdaq", "magnitude": 5.0, "unit": "%", "direction": "down"},
+        "duration": "24H",
+        "model_source": "deterministic",
+        "explanation": "Stress estimate",
+        "impacts": [{"symbol": "rNVDA", "impact_pct": -7.0, "calibrated": False}],
+    }
+    config = playbook_config(twin)
+    assert "Pair" in config and "Pause Condition" in config
+    blob = json.dumps(config).lower()
+    assert "place-reality-order" not in blob
+    assert "/api/v3/trade/" not in blob
+
+
+@pytest.mark.asyncio
+async def test_export_rows_include_quantity_and_balance(monkeypatch: pytest.MonkeyPatch) -> None:
+    await store.clear_memory()
+
+    async def fake_asset(symbol: str) -> dict[str, object]:
+        return {"symbol": symbol, "price": 100.0}
+
+    monkeypatch.setattr(arena_module.bitget_market, "get_asset", fake_asset)
+    request = SimpleNamespace(
+        symbol="rNVDA",
+        user_side="LONG",
+        ai_side="WAIT",
+        thesis="Export test thesis",
+        stake=10_000.0,
+        duration_hours=24,
+        opponent="NightWatch",
+    )
+    battle = await arena_service.create_battle(request)
+    assert float(battle["quantity"]) == 100.0
+    rows = await arena_service.export_rows()
+    assert len(rows) == 1
+    row = rows[0]
+    for key in ("timestamp", "asset", "direction", "entry_price", "quantity", "stake"):
+        assert key in row
+    csv_text = arena_service.export_csv(rows)
+    assert "battle_id" in csv_text.splitlines()[0]
+    assert "settlement_hash" in csv_text.splitlines()[0]
+
+
+@pytest.mark.asyncio
+async def test_portfolio_reports_risk_stats(monkeypatch: pytest.MonkeyPatch) -> None:
+    await store.clear_memory()
+
+    async def fake_asset(symbol: str) -> dict[str, object]:
+        return {"symbol": symbol, "price": 100.0}
+
+    monkeypatch.setattr(arena_module.bitget_market, "get_asset", fake_asset)
+    request = SimpleNamespace(
+        symbol="rNVDA",
+        user_side="LONG",
+        ai_side="WAIT",
+        thesis="Risk stats thesis",
+        stake=10_000.0,
+        duration_hours=24,
+        opponent="NightWatch",
+    )
+    await arena_service.create_battle(request)
+    portfolio = await arena_service.portfolio()
+    for key in ("win_rate", "profit_factor", "max_drawdown_pct", "sharpe_like"):
+        assert key in portfolio

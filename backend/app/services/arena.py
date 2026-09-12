@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
+import statistics
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
@@ -12,6 +15,36 @@ from app.services.storage import store
 
 class ArenaError(RuntimeError):
     pass
+
+
+def battle_canonical_payload(battle: dict[str, Any]) -> str:
+    """Canonical string for tamper-evident settlement hashing."""
+    payload = {
+        "id": str(battle.get("id")),
+        "symbol": str(battle.get("symbol")),
+        "user_side": str(battle.get("user_side")),
+        "ai_side": str(battle.get("ai_side")),
+        "stake": round(float(battle.get("stake") or 0), 2),
+        "entry_price": float(battle.get("entry_price") or 0),
+        "settled_price": float(battle.get("settled_price") or 0),
+        "created_at": str(battle.get("created_at")),
+        "settled_at": str(battle.get("settled_at")),
+    }
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def battle_hash(battle: dict[str, Any]) -> str:
+    return hashlib.sha256(battle_canonical_payload(battle).encode("utf-8")).hexdigest()
+
+
+def verify_battle_hash(battle: dict[str, Any]) -> bool:
+    stored = battle.get("settlement_hash")
+    if not stored or battle.get("status") != "settled":
+        return False
+    try:
+        return str(stored) == battle_hash(battle)
+    except Exception:
+        return False
 
 
 def _pnl(side: str, entry: float, current: float) -> float:
@@ -46,6 +79,15 @@ class ArenaService:
 
             asset = await bitget_market.get_asset(request.symbol)
             now = datetime.now(timezone.utc)
+            entry = float(asset["price"])
+            stake_value = float(request.stake)
+            raw_confidence = getattr(request, "stated_confidence", None)
+            stated_confidence: float | None = None
+            if raw_confidence is not None:
+                try:
+                    stated_confidence = round(max(0.0, min(100.0, float(raw_confidence))), 2)
+                except (TypeError, ValueError):
+                    stated_confidence = None
             battle = {
                 "id": f"battle_{uuid4().hex[:12]}",
                 "player_id": player_id,
@@ -54,15 +96,18 @@ class ArenaService:
                 "user_side": request.user_side,
                 "ai_side": request.ai_side,
                 "opponent": request.opponent,
-                "stake": float(request.stake),
-                "entry_price": float(asset["price"]),
-                "current_price": float(asset["price"]),
+                "stake": stake_value,
+                "stated_confidence": stated_confidence,
+                "quantity": round(stake_value / entry, 6) if entry > 0 else 0.0,
+                "entry_price": entry,
+                "current_price": entry,
                 "user_pnl_pct": 0.0,
                 "ai_pnl_pct": 0.0,
                 "created_at": now.isoformat(),
                 "expires_at": (now + timedelta(hours=request.duration_hours)).isoformat(),
                 "settled_at": None,
                 "settled_price": None,
+                "settlement_hash": None,
                 "status": "live",
                 "source": "bitget",
             }
@@ -75,6 +120,13 @@ class ArenaService:
             battle["current_price"] = settled
             battle["user_pnl_pct"] = _pnl(str(battle["user_side"]), float(battle["entry_price"]), settled)
             battle["ai_pnl_pct"] = _pnl(str(battle["ai_side"]), float(battle["entry_price"]), settled)
+            # Backfill tamper-evident hash for battles settled before hashing existed.
+            if not battle.get("settlement_hash"):
+                try:
+                    battle["settlement_hash"] = battle_hash(battle)
+                    await store.save("battles", str(battle["id"]), battle)
+                except Exception:
+                    pass
             return battle
 
         current = price_by_symbol.get(
@@ -91,6 +143,10 @@ class ArenaService:
             battle["status"] = "settled"
             battle["settled_price"] = current
             battle["settled_at"] = datetime.now(timezone.utc).isoformat()
+            try:
+                battle["settlement_hash"] = battle_hash(battle)
+            except Exception:
+                battle["settlement_hash"] = None
         await store.save("battles", str(battle["id"]), battle)
         return battle
 
@@ -139,6 +195,39 @@ class ArenaService:
             if b["user_side"] != "WAIT"
         )
         net = starting + pnl_dollars
+        settled = [b for b in battles if b.get("status") == "settled" and b.get("user_side") != "WAIT"]
+        wins = sum(1 for b in settled if float(b.get("user_pnl_pct") or 0) > 0)
+        gross_profit = sum(
+            float(b["stake"]) * float(b["user_pnl_pct"]) / 100
+            for b in settled
+            if float(b.get("user_pnl_pct") or 0) > 0
+        )
+        gross_loss = sum(
+            abs(float(b["stake"]) * float(b["user_pnl_pct"]) / 100)
+            for b in settled
+            if float(b.get("user_pnl_pct") or 0) < 0
+        )
+        profit_factor = round(gross_profit / gross_loss, 4) if gross_loss > 0 else (round(gross_profit, 2) if gross_profit > 0 else 0.0)
+        # Equity curve in creation order for max drawdown + Sharpe-like stat.
+        ordered = sorted(battles, key=lambda row: str(row.get("created_at") or ""))
+        equity = starting
+        peak = starting
+        worst_dd = 0.0
+        for row in ordered:
+            if row.get("user_side") == "WAIT":
+                continue
+            equity += float(row["stake"]) * float(row.get("user_pnl_pct") or 0) / 100
+            peak = max(peak, equity)
+            if peak > 0:
+                worst_dd = min(worst_dd, (equity / peak - 1) * 100)
+        pnl_pcts = [float(b.get("user_pnl_pct") or 0) for b in settled]
+        if len(pnl_pcts) >= 2:
+            try:
+                sharpe_like = round(statistics.mean(pnl_pcts) / (statistics.stdev(pnl_pcts) or 1.0), 4)
+            except statistics.StatisticsError:
+                sharpe_like = 0.0
+        else:
+            sharpe_like = 0.0
         return {
             "starting_capital": round(starting, 2),
             "net_value": round(net, 2),
@@ -147,7 +236,26 @@ class ArenaService:
             "return_pct": round((net / starting - 1) * 100, 4) if starting else 0.0,
             "open_battles": sum(1 for b in battles if b["status"] == "live"),
             "settled_battles": sum(1 for b in battles if b["status"] == "settled"),
+            "win_rate": round(wins / len(settled) * 100, 2) if settled else 0.0,
+            "profit_factor": profit_factor,
+            "max_drawdown_pct": round(worst_dd, 4),
+            "sharpe_like": sharpe_like,
         }
+
+    def _profit_factor(self, rows: list[dict[str, Any]], pnl_key: str) -> float:
+        gross_profit = sum(
+            float(r["stake"]) * float(r[pnl_key]) / 100
+            for r in rows
+            if float(r.get(pnl_key) or 0) > 0
+        )
+        gross_loss = sum(
+            abs(float(r["stake"]) * float(r[pnl_key]) / 100)
+            for r in rows
+            if float(r.get(pnl_key) or 0) < 0
+        )
+        if gross_loss > 0:
+            return round(gross_profit / gross_loss, 4)
+        return round(gross_profit, 2) if gross_profit > 0 else 0.0
 
     async def leaderboard(self, player_id: str = "guest_default") -> list[dict[str, Any]]:
         battles = await self.list_battles(player_id)
@@ -177,6 +285,7 @@ class ArenaService:
                 "style": "Thesis-driven",
                 "return_pct": weighted_return(battles, "user_side"),
                 "win_rate": round(user_wins / len(decisive) * 100),
+                "profit_factor": self._profit_factor([b for b in battles if b.get("user_side") != "WAIT"], "user_pnl_pct"),
                 "battles": len(battles),
             }
         ]
@@ -198,6 +307,7 @@ class ArenaService:
                     "style": "Adversarial stress-test",
                     "return_pct": weighted_return(agent_battles, "ai_side"),
                     "win_rate": round(wins / len(agent_decisive) * 100),
+                    "profit_factor": self._profit_factor([b for b in agent_battles if b.get("ai_side") != "WAIT"], "ai_pnl_pct"),
                     "battles": len(agent_battles),
                 }
             )
@@ -208,6 +318,76 @@ class ArenaService:
         for index, row in enumerate(rows, start=1):
             row["rank"] = index
         return rows
+
+    async def export_rows(self, player_id: str = "guest_default") -> list[dict[str, Any]]:
+        """Judge-ready paper-trading log: timestamp, asset, direction, price,
+        quantity, balance change. Quantity is virtual units (stake/entry)."""
+        battles = await self.list_battles(player_id)
+        battles.sort(key=lambda row: str(row.get("created_at") or ""))
+        running = float(settings.arena_starting_capital)
+        rows: list[dict[str, Any]] = []
+        for battle in battles:
+            stake = float(battle.get("stake") or 0)
+            entry = float(battle.get("entry_price") or 0)
+            quantity = float(battle.get("quantity") or (stake / entry if entry > 0 else 0))
+            pnl_pct = float(battle.get("user_pnl_pct") or 0)
+            pnl_dollars = round(stake * pnl_pct / 100, 2)
+            if battle.get("status") == "settled":
+                running = round(running + pnl_dollars, 2)
+            rows.append(
+                {
+                    "timestamp": battle.get("created_at"),
+                    "battle_id": battle.get("id"),
+                    "asset": battle.get("symbol"),
+                    "direction": battle.get("user_side"),
+                    "opponent_side": battle.get("ai_side"),
+                    "entry_price": entry,
+                    "exit_price": battle.get("settled_price")
+                    if battle.get("status") == "settled"
+                    else battle.get("current_price"),
+                    "quantity": round(quantity, 6),
+                    "stake": round(stake, 2),
+                    "status": battle.get("status"),
+                    "stated_confidence": battle.get("stated_confidence"),
+                    "pnl_pct": round(pnl_pct, 4),
+                    "pnl_dollars": pnl_dollars,
+                    "account_balance_after": running if battle.get("status") == "settled" else None,
+                    "settled_at": battle.get("settled_at"),
+                    "settlement_hash": battle.get("settlement_hash"),
+                    "hash_verified": verify_battle_hash(battle) if battle.get("status") == "settled" else None,
+                    "thesis": battle.get("thesis"),
+                }
+            )
+        return rows
+
+    def export_csv(self, rows: list[dict[str, Any]]) -> str:
+        import csv
+        import io
+
+        fieldnames = [
+            "timestamp", "battle_id", "asset", "direction", "opponent_side",
+            "entry_price", "exit_price", "quantity", "stake", "status",
+            "stated_confidence",
+            "pnl_pct", "pnl_dollars", "account_balance_after",
+            "settled_at", "settlement_hash", "hash_verified", "thesis",
+        ]
+        buffer = io.StringIO()
+        writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({key: row.get(key) for key in fieldnames})
+        return buffer.getvalue()
+
+    async def track_record(self, player_id: str = "guest_default") -> dict[str, Any]:
+        """Deterministic aggregate over this player's settled battles.
+
+        Read-only over the existing battles collection (MongoDB or memory
+        fallback via store); no new persistence needed.
+        """
+        from app.services.calibration import track_record as compute_record
+
+        battles = await self.list_battles(player_id)
+        return compute_record(battles)
 
 
 arena_service = ArenaService()

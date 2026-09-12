@@ -161,6 +161,29 @@ A total Vibe failure must result in:
 
 Raw stack traces, connector URLs and internal MCP errors are not intended for the public UI.
 
+## Transparency surface ("Show your work")
+
+MarketTwin exposes the intermediate inputs it already computes instead of only
+the final impact range, so the UI can show its work in plain language:
+
+- per impact: `beta_used` / `beta_source` (`measured` or `prior`), `prior_beta`
+  (the hand-set `SCENARIO_BETAS` value used on fallback), `correlation_to_qqq`,
+  `paired_observations` vs `observations_minimum` (20), `calibration_gate_passed`,
+  `fallback_reason` (`fewer_than_20_paired_observations`,
+  `non_nasdaq_category_uses_prior` or `vibe_unavailable`), `short_volatility_pct`
+  (hourly realized vol from Bitget sparks, `None` when insufficient),
+  `annualized_volatility_pct` and `severity_scale`.
+- top-level `transparency`: the 20-observation gate, analogue count/selection
+  note and a volatility note.
+
+The gate counts **paired** asset+QQQ observations (`paired_observations`), not
+raw closes. The MarketTwin screen renders one collapsible **Show your work**
+panel per scenario result (`src/components/ShowYourWork.tsx`) plus per-impact
+"View why" details. When historical beta wasn't used because fewer than 20
+paired observations were available, both state the count and name the
+transparent AlphaArena prior used instead. E2E coverage:
+`e2e/market-twin-work.spec.ts` (calibrated + below-gate messaging).
+
 ## CI verification
 
 The CI Vibe smoke job installs the exact pinned release, asserts the installed version is `0.1.15`, verifies that the MCP executable starts sufficiently to expose its CLI, and verifies that deployment keeps `VIBE_TRADING_ENABLE_SHELL_TOOLS=0`.

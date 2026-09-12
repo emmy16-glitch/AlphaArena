@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { Activity, FlaskConical, Swords, Wallet, Trophy, Plus, ChevronLeft, ShieldCheck } from 'lucide-react';
+import { Activity, Crosshair, FlaskConical, Swords, Wallet, Trophy, Plus, ChevronLeft, ShieldCheck } from 'lucide-react';
 import { Logo } from './ui';
 import { cn } from '../utils/cn';
 import { type PortfolioSummary, productApi } from '../product/api';
@@ -10,6 +10,7 @@ const nav = [
   { id: 'arena', label: 'Arena', icon: Swords, hint: 'Battle' },
   { id: 'portfolio', label: 'Portfolio', icon: Wallet, hint: 'Paper' },
   { id: 'leaderboard', label: 'Ranks', icon: Trophy, hint: 'Results' },
+  { id: 'track-record', label: 'Record', icon: Crosshair, hint: 'Calibrate' },
 ];
 
 function compactMoney(value: number) {
@@ -108,7 +109,7 @@ export default function AppShell({ view, onNav, onHome, children, onCreate }: { 
       <main className="pb-28 lg:ml-[232px] lg:pb-14"><div className="mx-auto max-w-[1120px] px-4 pt-6 sm:px-5 md:px-8 md:pt-8">{children}</div></main>
 
       <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E7E5DE] bg-[#FAF9F6]/96 backdrop-blur-xl lg:hidden">
-        <div className="grid grid-cols-5 px-1 pb-[max(6px,env(safe-area-inset-bottom))] pt-1.5">
+        <div className="grid grid-cols-6 px-1 pb-[max(6px,env(safe-area-inset-bottom))] pt-1.5">
           {nav.map((n) => {
             const active = view === n.id || (n.id === 'pulse' && (view === 'asset' || view === 'nightwatch')) || (n.id === 'arena' && view === 'battle');
             return (

@@ -18,6 +18,15 @@ export type NightWatchReport = {
 export type TwinImpact = {
   symbol: string; asset_name?: string | null; current_price: number; impact_pct: number; lower_pct: number; upper_pct: number; confidence: number;
   model?: string | null; calibrated?: boolean | null; beta_to_qqq?: number | null;
+  beta_source?: 'measured' | 'prior' | null; prior_beta?: number | null; correlation_to_qqq?: number | null;
+  paired_observations?: number | null; observations_minimum?: number | null; calibration_gate_passed?: boolean | null;
+  fallback_reason?: 'fewer_than_20_paired_observations' | 'non_nasdaq_category_uses_prior' | 'vibe_unavailable' | null;
+  short_volatility_pct?: number | null; annualized_volatility_pct?: number | null; severity_scale?: number | null;
+};
+
+export type TwinTransparency = {
+  calibration_minimum_observations?: number | null; selection_basis?: string | null;
+  analogue_count?: number | null; analogue_note?: string | null; volatility_note?: string | null;
 };
 
 export type TwinExplanation = {
@@ -36,7 +45,25 @@ export type TwinResponse = {
   shock: { driver: string; category: string; magnitude: number; unit: string; direction: 'up'|'down'|'mixed' };
   impacts: TwinImpact[]; explanation: string; analogues: HistoricalAnalogue[]; model_source: string; sources: SourceStatus;
   explanation_view?: TwinExplanation | null; historical_context?: HistoricalContextMeta | null;
-  assumptions?: TwinAssumptions | null; challenge_options?: string[];
+  assumptions?: TwinAssumptions | null; challenge_options?: string[]; transparency?: TwinTransparency | null;
+};
+
+export type PortfolioPosition = { symbol: string; side: Direction; stake: number };
+
+export type PortfolioLeg = TwinImpact & {
+  side: Direction; stake: number; impact_dollars: number; lower_dollars: number; upper_dollars: number;
+};
+
+export type PortfolioAggregate = {
+  total_stake: number; impact_dollars: number; lower_dollars: number; upper_dollars: number;
+  impact_pct: number; lower_pct: number; upper_pct: number; legs: number; method: string;
+};
+
+export type PortfolioStressResponse = {
+  id: string; prompt: string; generated_at: string; duration: string;
+  shock: TwinResponse['shock']; legs: PortfolioLeg[]; aggregate: PortfolioAggregate;
+  model_source: string; sources: SourceStatus; transparency?: TwinTransparency | null;
+  assumptions?: TwinAssumptions | null; disclaimer?: string;
 };
 
 export type PulseEvent = {
@@ -46,17 +73,42 @@ export type PulseEvent = {
 
 export type BattleView = {
   id: string; symbol: string; thesis: string; user_side: Direction; ai_side: Direction; opponent: string;
-  stake: number; entry_price: number; current_price: number; user_pnl_pct: number; ai_pnl_pct: number;
+  stake: number; quantity?: number | null; entry_price: number; current_price: number; user_pnl_pct: number; ai_pnl_pct: number;
   created_at: string; expires_at: string; settled_at?: string | null; settled_price?: number | null;
+  settlement_hash?: string | null; stated_confidence?: number | null;
   status: 'live'|'settled'; source: string;
 };
 
 export type PortfolioSummary = {
   starting_capital: number; net_value: number; free_capital: number; deployed_capital: number;
   return_pct: number; open_battles: number; settled_battles: number;
+  win_rate?: number | null; profit_factor?: number | null; max_drawdown_pct?: number | null; sharpe_like?: number | null;
 };
 
-export type LeaderRow = { rank: number; name: string; type: 'human'|'ai'; style: string; return_pct: number; win_rate: number; battles: number };
+export type LeaderRow = { rank: number; name: string; type: 'human'|'ai'; style: string; return_pct: number; win_rate: number; battles: number; profit_factor?: number | null };
+
+export type PaperLogRow = {
+  timestamp: string; battle_id: string; asset: string; direction: Direction; opponent_side: Direction;
+  entry_price: number; exit_price: number | null; quantity: number; stake: number; status: string;
+  pnl_pct: number; pnl_dollars: number; account_balance_after: number | null;
+  settled_at: string | null; settlement_hash: string | null; hash_verified: boolean | null; thesis: string;
+};
+
+export type BacktestReport = {
+  symbol: string; exchange_symbol?: string; entry_price?: number; prices_used: number; frequency: string;
+  metrics: { num_bars: number; return_pct: number; max_drawdown_pct: number; sharpe_like: number; win_rate: number; method: string };
+  code: string; disclaimer: string;
+};
+
+export type PlaybookConfig = Record<string, string>;
+
+export type CalibrationBucket = { bucket: string; stated_midpoint: number; n: number; win_rate: number | null };
+
+export type TrackRecord = {
+  settled_battles: number; scored_battles: number; min_settled_battles: number; insufficient_data: boolean;
+  win_rate: number; brier_score: number | null; brier_baseline: number | null;
+  curve: CalibrationBucket[]; disclaimer: string;
+};
 
 export type TraderProfile = {
   id: string; name: string; style: 'Event-driven'|'Momentum'|'Contrarian'|'Risk-first'; risk_appetite: number;
@@ -97,14 +149,21 @@ export const productApi = {
   nightwatchHistory: () => apiData<NightWatchReport[]>('/api/nightwatch/history'),
   simulate: (body: { prompt: string; symbols: string[]; severity: number; duration: string }) =>
     apiData<TwinResponse>('/api/twin/simulate', { method: 'POST', body: JSON.stringify(body) }),
+  portfolioStress: (body: { prompt: string; positions: PortfolioPosition[]; severity: number; duration: string }) =>
+    apiData<PortfolioStressResponse>('/api/twin/portfolio', { method: 'POST', body: JSON.stringify(body) }),
   scenarioHistory: () => apiData<TwinResponse[]>('/api/twin/history'),
-  createBattle: (body: { symbol: string; user_side: Direction; ai_side: Direction; thesis: string; stake: number; duration_hours: number; opponent?: string }) =>
+  createBattle: (body: { symbol: string; user_side: Direction; ai_side: Direction; thesis: string; stake: number; duration_hours: number; opponent?: string; stated_confidence?: number }) =>
     apiData<BattleView>('/api/arena/battles', { method: 'POST', body: JSON.stringify(body) }),
   battles: () => apiData<BattleView[]>('/api/arena/battles'),
   battle: (id: string) => apiData<BattleView>(`/api/arena/battles/${encodeURIComponent(id)}`),
   reviewBattle: (id: string) => apiData<BattleReview>(`/api/arena/battles/${encodeURIComponent(id)}/review`, { method: 'POST' }),
   portfolio: (signal?: AbortSignal) => apiData<PortfolioSummary>('/api/arena/portfolio', { signal }),
   leaderboard: () => apiData<LeaderRow[]>('/api/arena/leaderboard'),
+  trackRecord: () => apiData<TrackRecord>('/api/track-record'),
+  paperLog: () => apiData<PaperLogRow[]>('/api/arena/export.json'),
+  backtest: (symbol: string) => apiData<BacktestReport>(`/api/research/backtest/${encodeURIComponent(symbol)}`),
+  playbook: (scenarioId: string) => apiData<PlaybookConfig>(`/api/twin/playbook/${encodeURIComponent(scenarioId)}`),
+  verifyBattle: (id: string) => apiData<{ battle_id: string; verified: boolean; settlement_hash: string | null }>(`/api/arena/battles/${encodeURIComponent(id)}/verify`),
   createTrader: (body: { name: string; style: TraderProfile['style']; risk_appetite: number; holding_period: TraderProfile['holding_period']; assets: string[] }) =>
     apiData<TraderProfile>('/api/traders', { method: 'POST', body: JSON.stringify(body) }),
   traders: () => apiData<TraderProfile[]>('/api/traders'),

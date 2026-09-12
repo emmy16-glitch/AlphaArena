@@ -1,0 +1,15 @@
+{
+  "symbol": "rNVDA",
+  "source": "offline-provided closes",
+  "num_prices": 10,
+  "metrics": {
+    "num_bars": 10,
+    "return_pct": 12.0,
+    "max_drawdown_pct": -1.9802,
+    "sharpe_like": 0.5119,
+    "win_rate": 66.67,
+    "method": "buy-and-hold on provided closes; no lookahead"
+  },
+  "code": "backend/app/services/backtest.py::backtest_metrics",
+  "disclaimer": "Historical replay is context, not a prediction."
+}

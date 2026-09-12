@@ -12,10 +12,11 @@ const ConnectedArena = lazy(() => import('./features/ArenaScreens').then((module
 const ConnectedBattle = lazy(() => import('./features/ArenaScreens').then((module) => ({ default: module.BattleScreen })));
 const ConnectedPortfolio = lazy(() => import('./features/ArenaScreens').then((module) => ({ default: module.PortfolioScreen })));
 const ConnectedLeaderboard = lazy(() => import('./features/ArenaScreens').then((module) => ({ default: module.LeaderboardScreen })));
+const ConnectedTrackRecord = lazy(() => import('./features/TrackRecordScreen'));
 
 type Route = { view: string; payload?: Record<string, unknown> };
 
-const VALID_VIEWS = new Set(['landing', 'pulse', 'asset', 'nightwatch', 'lab', 'arena', 'battle', 'leaderboard', 'portfolio', 'create']);
+const VALID_VIEWS = new Set(['landing', 'pulse', 'asset', 'nightwatch', 'lab', 'arena', 'battle', 'leaderboard', 'portfolio', 'track-record', 'create']);
 
 function initialRoute(): Route {
   const state = window.history.state?.alphaArenaRoute as Route | undefined;
@@ -65,6 +66,7 @@ export default function App() {
       {route.view === 'arena' && <ConnectedArena onNav={nav} initialSymbol={symbol} initialThesis={thesis} initialAiSide={aiSide} />}
       {route.view === 'battle' && <ConnectedBattle onNav={nav} battleId={battleId} />}
       {route.view === 'leaderboard' && <ConnectedLeaderboard />}
+      {route.view === 'track-record' && <ConnectedTrackRecord onNav={nav} />}
       {route.view === 'portfolio' && <ConnectedPortfolio onNav={nav} />}
       {route.view === 'create' && <ConnectedTrader onNav={nav} />}
     </AppShell>}

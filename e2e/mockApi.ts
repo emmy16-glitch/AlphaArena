@@ -68,7 +68,14 @@ const nightwatch = {
 const twin = {
   id: 'twin-test', prompt: 'What if Nasdaq falls 5% before the U.S. open?', generated_at: '2026-09-10T10:00:00Z', duration: '24H',
   shock: { driver: 'Nasdaq 100', category: 'nasdaq', magnitude: 5, unit: '%', direction: 'down' },
-  impacts: assets.slice(0, 4).map((asset, index) => ({ symbol: asset.symbol, current_price: asset.price, impact_pct: -3.2 - index, lower_pct: -5.5 - index, upper_pct: -1.2 - index, confidence: 68, model: 'Vibe-Trading measured beta', beta_to_qqq: 1.1 + index * 0.1 })),
+  impacts: assets.slice(0, 4).map((asset, index) => ({
+    symbol: asset.symbol, asset_name: ['Nvidia', 'Tesla', 'Apple', 'Microsoft'][index], current_price: asset.price,
+    impact_pct: -3.2 - index, lower_pct: -5.5 - index, upper_pct: -1.2 - index, confidence: 68,
+    model: 'Vibe-Trading measured beta', calibrated: true, calibration_gate_passed: true,
+    beta_to_qqq: 1.1 + index * 0.1, beta_source: 'measured', prior_beta: 1.55 - index * 0.1,
+    correlation_to_qqq: 0.78 - index * 0.03, paired_observations: 60 - index * 5, observations_minimum: 20,
+    fallback_reason: null, short_volatility_pct: 1.15, annualized_volatility_pct: 31.4, severity_scale: 1.0,
+  })),
   explanation: 'Measured historical sensitivity is applied where enough aligned observations exist; uncertainty is widened with current volatility.',
   explanation_view: {
     plain_summary: 'If the Nasdaq 100 fell 5%, the assets with the strongest historical sensitivity in this simulation could move the most. The evidence is fairly strong, but not conclusive.',
@@ -80,6 +87,11 @@ const twin = {
     selection_basis: 'current_observed_move', data_frequency: 'daily',
     selection_disclaimer: 'These daily observations were selected using the underlying asset\'s current observed move. They are context, not scenario matches or predictions.',
   },
+  transparency: {
+    calibration_minimum_observations: 20, selection_basis: 'current_observed_move', analogue_count: 1,
+    analogue_note: 'Analogues were selected mechanically: same-direction daily moves closest in size to the underlying\'s current observed move.',
+    volatility_note: 'Uncertainty bands widen with short-window realized volatility from recent live prices and annualized historical volatility.',
+  },
   assumptions: { benchmark_move_pct: -5, duration: '24H', sensitivity_method: 'historical' },
   challenge_options: ['The size of the market move', 'The time horizon', 'The historical evidence'],
   analogues: [{ label: 'Historical comparison', outcome: 'Observed next-day outcomes varied.', relevance: 'Context only, not a forecast.' }],
@@ -87,11 +99,101 @@ const twin = {
   sources: { market: 'bitget-live', qwen: 'deterministic-fallback', vibe: 'connected', signal: 'connected' },
 };
 
+const twinFallback = {
+  ...twin,
+  id: 'twin-fallback-test',
+  impacts: assets.slice(0, 4).map((asset, index) => ({
+    symbol: asset.symbol, asset_name: ['Nvidia', 'Tesla', 'Apple', 'Microsoft'][index], current_price: asset.price,
+    impact_pct: -4.1 - index, lower_pct: -6.4 - index, upper_pct: -1.9 - index, confidence: 62,
+    model: 'Assumption-based prior (uncalibrated)', calibrated: false, calibration_gate_passed: false,
+    beta_to_qqq: null, beta_source: 'prior', prior_beta: 1.55 - index * 0.1,
+    correlation_to_qqq: null, paired_observations: 7, observations_minimum: 20,
+    fallback_reason: 'fewer_than_20_paired_observations', short_volatility_pct: 1.15, annualized_volatility_pct: null, severity_scale: 1.0,
+  })),
+  model_source: 'Assumption-based priors (uncalibrated)',
+};
+
+const portfolioStress = {
+  id: 'pf-test', prompt: 'What if Nasdaq falls 5% before the U.S. open?', generated_at: '2026-09-10T10:00:00Z', duration: '24H',
+  shock: { driver: 'Nasdaq 100', category: 'nasdaq', magnitude: 5, unit: '%', direction: 'down' },
+  legs: [
+    {
+      symbol: 'rNVDA', asset_name: 'Nvidia', side: 'LONG', stake: 10000, current_price: 100,
+      impact_pct: -3.2, lower_pct: -5.5, upper_pct: -1.2, impact_dollars: -320, lower_dollars: -550, upper_dollars: -120,
+      confidence: 68, model: 'Vibe-Trading measured beta', calibrated: true, calibration_gate_passed: true,
+      beta_to_qqq: 1.1, beta_source: 'measured', prior_beta: 1.55, correlation_to_qqq: 0.78,
+      paired_observations: 60, observations_minimum: 20, fallback_reason: null,
+      short_volatility_pct: 1.15, annualized_volatility_pct: 31.4, severity_scale: 1.0,
+    },
+    {
+      symbol: 'rAAPL', asset_name: 'Apple', side: 'LONG', stake: 5000, current_price: 134.5,
+      impact_pct: -4.05, lower_pct: -6.1, upper_pct: -2.0, impact_dollars: -202.5, lower_dollars: -305, upper_dollars: -100,
+      confidence: 66, model: 'Vibe-Trading measured beta', calibrated: true, calibration_gate_passed: true,
+      beta_to_qqq: 0.9, beta_source: 'measured', prior_beta: 0.86, correlation_to_qqq: 0.71,
+      paired_observations: 52, observations_minimum: 20, fallback_reason: null,
+      short_volatility_pct: 0.9, annualized_volatility_pct: 24.8, severity_scale: 1.0,
+    },
+    {
+      symbol: 'rTSLA', asset_name: 'Tesla', side: 'SHORT', stake: 5000, current_price: 117.25,
+      impact_pct: 4.4, lower_pct: 2.1, upper_pct: 6.7, impact_dollars: 220, lower_dollars: 105, upper_dollars: 335,
+      confidence: 62, model: 'Assumption-based prior (uncalibrated)', calibrated: false, calibration_gate_passed: false,
+      beta_to_qqq: null, beta_source: 'prior', prior_beta: 1.42, correlation_to_qqq: null,
+      paired_observations: 7, observations_minimum: 20, fallback_reason: 'fewer_than_20_paired_observations',
+      short_volatility_pct: 1.6, annualized_volatility_pct: null, severity_scale: 1.0,
+    },
+  ],
+  aggregate: {
+    total_stake: 20000, impact_dollars: -302.5, lower_dollars: -750, upper_dollars: 115,
+    impact_pct: -1.51, lower_pct: -3.75, upper_pct: 0.58, legs: 3,
+    method: 'stake-weighted sum of leg impacts; bounds assume no diversification benefit',
+  },
+  model_source: 'Hybrid Vibe-Trading calibration + assumption-based priors (uncalibrated)',
+  sources: { market: 'bitget-live', vibe: 'connected', signal: 'unavailable', qwen: 'deterministic-fallback' },
+  transparency: {
+    calibration_minimum_observations: 20,
+    aggregate_method: 'stake-weighted sum of leg impacts; bounds assume no diversification benefit',
+    side_note: 'SHORT legs mirror the asset move; WAIT legs carry no exposure.',
+    volatility_note: 'Each leg\u2019s uncertainty band widens with short-window realized volatility from recent live prices.',
+  },
+  assumptions: { benchmark_move_pct: -5, duration: '24H', sensitivity_method: 'historical', single_driver_note: 'One scenario driver is parsed from the prompt.' },
+  disclaimer: 'Hypothetical stress estimates, not forecasts or recommendations. Paper only.',
+};
+
+const trackRecordEmpty = {
+  settled_battles: 0, scored_battles: 0, min_settled_battles: 5, insufficient_data: true,
+  win_rate: 0, brier_score: null, brier_baseline: null, curve: [],
+  disclaimer: 'Paper-only aggregate of your own settled battles.',
+};
+
+const trackRecordInsufficient = {
+  settled_battles: 3, scored_battles: 2, min_settled_battles: 5, insufficient_data: true,
+  win_rate: 66.67, brier_score: null, brier_baseline: null, curve: [],
+  disclaimer: 'Paper-only aggregate of your own settled battles.',
+};
+
+const trackRecordPopulated = {
+  settled_battles: 8, scored_battles: 8, min_settled_battles: 5, insufficient_data: false,
+  win_rate: 62.5, brier_score: 0.21, brier_baseline: 0.2344,
+  curve: [
+    { bucket: '50–60%', stated_midpoint: 55, n: 2, win_rate: 50 },
+    { bucket: '60–70%', stated_midpoint: 65, n: 3, win_rate: 66.67 },
+    { bucket: '70–80%', stated_midpoint: 75, n: 2, win_rate: 50 },
+    { bucket: '80–90%', stated_midpoint: 85, n: 1, win_rate: 100 },
+    { bucket: '90–100%', stated_midpoint: 95, n: 0, win_rate: null },
+  ],
+  disclaimer: 'Paper-only aggregate of your own settled battles. A good past score does not prove a repeatable edge; it only shows whether past confidence matched past outcomes.',
+};
+
 function json(route: Route, data: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
 }
 
-export async function mockApi(page: Page, options?: { pulseFailure?: boolean }) {
+export async function mockApi(page: Page, options?: { pulseFailure?: boolean; trackRecord?: 'empty' | 'insufficient' | 'populated'; twinFallback?: boolean }) {
+  const trackRecord = options?.trackRecord === 'populated'
+    ? trackRecordPopulated
+    : options?.trackRecord === 'empty'
+      ? trackRecordEmpty
+      : trackRecordInsufficient;
   await page.route('**/api/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -103,10 +205,12 @@ export async function mockApi(page: Page, options?: { pulseFailure?: boolean }) 
     if (path === '/api/pulse' && options?.pulseFailure) return json(route, { error: { code: 'UPSTREAM_UNAVAILABLE', message: 'Live market data is taking longer than usual.', action: 'Try again in a moment.', retryable: true } }, 502);
     if (path === '/api/pulse') return json(route, { data: pulse });
     if (path === '/api/nightwatch/analyze') return json(route, { data: nightwatch });
-    if (path === '/api/twin/simulate') return json(route, { data: twin });
+    if (path === '/api/twin/simulate') return json(route, { data: options?.twinFallback ? twinFallback : twin });
+    if (path === '/api/twin/portfolio') return json(route, { data: portfolioStress });
     if (path === '/api/arena/battles' && request.method() === 'GET') return json(route, { data: [] });
     if (path === '/api/arena/battles' && request.method() === 'POST') return json(route, { data: { id: 'battle-test', symbol: 'rNVDA', thesis: 'Test thesis', user_side: 'LONG', ai_side: 'WAIT', opponent: 'NightWatch', stake: 10000, entry_price: 100, current_price: 100, user_pnl_pct: 0, ai_pnl_pct: 0, created_at: '2026-09-10T10:00:00Z', expires_at: '2026-09-11T10:00:00Z', settled_at: null, settled_price: null, status: 'live', source: 'bitget' } });
     if (path === '/api/arena/leaderboard') return json(route, { data: [] });
+    if (path === '/api/track-record') return json(route, { data: trackRecord });
     if (path === '/api/traders') return json(route, { data: [] });
     if (path.startsWith('/api/integrations/')) return json(route, { data: {} });
     if (path.startsWith('/api/research/vibe/')) return json(route, { data: { connected: true, ticker: 'NVDA', evidence: {}, historical_stats: {}, analogues: [], provenance: {}, errors: [] } });

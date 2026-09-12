@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -78,6 +78,19 @@ class MarketTwinRequest(BaseModel):
     duration: str = "24H"
 
 
+class PortfolioPosition(BaseModel):
+    symbol: str = Field(min_length=1, max_length=16)
+    side: Direction = "LONG"
+    stake: float = Field(gt=0, le=100_000)
+
+
+class PortfolioStressRequest(BaseModel):
+    prompt: str = Field(min_length=3, max_length=1000)
+    positions: list[PortfolioPosition] = Field(min_length=1, max_length=8)
+    severity: int = Field(default=60, ge=10, le=100)
+    duration: str = "24H"
+
+
 class ParsedShock(BaseModel):
     driver: str
     category: str
@@ -97,6 +110,21 @@ class TwinImpact(BaseModel):
     model: str | None = None
     calibrated: bool | None = None
     beta_to_qqq: float | None = None
+    # "Show your work" transparency inputs (all optional for backward compat).
+    beta_source: Literal["measured", "prior"] | None = None
+    prior_beta: float | None = None
+    correlation_to_qqq: float | None = None
+    paired_observations: int | None = None
+    observations_minimum: int | None = None
+    calibration_gate_passed: bool | None = None
+    fallback_reason: Literal[
+        "fewer_than_20_paired_observations",
+        "non_nasdaq_category_uses_prior",
+        "vibe_unavailable",
+    ] | None = None
+    short_volatility_pct: float | None = None
+    annualized_volatility_pct: float | None = None
+    severity_scale: float | None = None
 
 
 class TwinExplanation(BaseModel):
@@ -133,6 +161,7 @@ class MarketTwinResponse(BaseModel):
     historical_context: HistoricalContextMeta | None = None
     assumptions: TwinAssumptions | None = None
     challenge_options: list[str] = Field(default_factory=list)
+    transparency: dict[str, Any] | None = None
 
 
 class PulseEvent(BaseModel):
@@ -156,6 +185,7 @@ class BattleCreateRequest(BaseModel):
     stake: float = Field(default=10_000, gt=0, le=100_000)
     duration_hours: int = Field(default=24, ge=1, le=168)
     opponent: str = Field(default="NightWatch", min_length=1, max_length=80)
+    stated_confidence: float | None = Field(default=None, ge=0, le=100)
 
 
 class BattleView(BaseModel):
@@ -166,6 +196,7 @@ class BattleView(BaseModel):
     ai_side: Direction
     opponent: str
     stake: float
+    quantity: float | None = None
     entry_price: float
     current_price: float
     user_pnl_pct: float
@@ -174,6 +205,8 @@ class BattleView(BaseModel):
     expires_at: str
     settled_at: str | None = None
     settled_price: float | None = None
+    settlement_hash: str | None = None
+    stated_confidence: float | None = None
     status: Literal["live", "settled"]
     source: str = "bitget"
 
@@ -186,6 +219,10 @@ class PortfolioSummary(BaseModel):
     return_pct: float
     open_battles: int
     settled_battles: int
+    win_rate: float | None = None
+    profit_factor: float | None = None
+    max_drawdown_pct: float | None = None
+    sharpe_like: float | None = None
 
 
 class LeaderRow(BaseModel):
@@ -196,6 +233,7 @@ class LeaderRow(BaseModel):
     return_pct: float
     win_rate: int
     battles: int
+    profit_factor: float | None = None
 
 
 class TraderProfileRequest(BaseModel):
@@ -224,3 +262,22 @@ class BattleReview(BaseModel):
     what_failed: list[str] = Field(default_factory=list)
     next_rule: str
     source: str
+
+
+class CalibrationBucket(BaseModel):
+    bucket: str
+    stated_midpoint: float
+    n: int
+    win_rate: float | None = None
+
+
+class TrackRecord(BaseModel):
+    settled_battles: int
+    scored_battles: int
+    min_settled_battles: int
+    insufficient_data: bool
+    win_rate: float
+    brier_score: float | None = None
+    brier_baseline: float | None = None
+    curve: list[CalibrationBucket] = Field(default_factory=list)
+    disclaimer: str

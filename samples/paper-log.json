@@ -1,0 +1,23 @@
+{
+  "data": [
+    {
+      "timestamp": "2026-09-10T10:00:00+00:00",
+      "battle_id": "battle_demo01",
+      "asset": "rNVDA",
+      "direction": "LONG",
+      "opponent_side": "WAIT",
+      "entry_price": 100.0,
+      "exit_price": 110.0,
+      "quantity": 100.0,
+      "stake": 10000.0,
+      "status": "settled",
+      "pnl_pct": 10.0,
+      "pnl_dollars": 1000.0,
+      "account_balance_after": 101000.0,
+      "settled_at": "2026-09-11T10:00:00+00:00",
+      "thesis": "Demo thesis: momentum continues 24H",
+      "settlement_hash": "4ce9fc1582ee2d9492968c58e833afe722391dddba4a9e9793a1fd8c4c88ff23",
+      "hash_verified": true
+    }
+  ]
+}

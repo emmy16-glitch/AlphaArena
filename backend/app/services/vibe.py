@@ -335,6 +335,7 @@ class VibeTradingResearch:
                     "correlation_to_qqq": stats.get("correlation_to_qqq"),
                     "annualized_volatility_pct": stats.get("annualized_volatility_pct"),
                     "observations": stats.get("observations", 0),
+                    "paired_observations": stats.get("paired_observations", 0),
                     "provenance": snapshot.get("provenance", {}),
                 }
         return result
