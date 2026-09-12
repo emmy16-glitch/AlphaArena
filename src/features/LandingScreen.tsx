@@ -14,7 +14,7 @@ function MarketStatus() {
   );
 }
 
-export default function Landing({ onEnter }: { onEnter: (view: string) => void }) {
+export default function Landing({ onEnter }: { onEnter: (view: string, payload?: unknown) => void }) {
   const { assets, status } = useMarketData();
   const hero = assets[0];
   const tape = [...assets.slice(0, 4), ...assets.slice(0, 4)];

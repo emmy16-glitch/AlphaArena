@@ -13,6 +13,7 @@ The backend owns the rules that should not depend on UI behavior:
 - optional budget-fused Qwen 3.8 high-reasoning synthesis through Groq,
 - virtual portfolio accounting,
 - immutable paper-battle settlement,
+- Shadow Session Listed/Shadow bucketing, kill verification and commitment hashing,
 - post-battle review,
 - lightweight background Pulse detection,
 - integration/budget diagnostics,
@@ -121,6 +122,7 @@ app/services/nightwatch.py     adversarial thesis analysis
 app/services/market_twin.py    what-if scenario engine
 app/services/arena.py          paper ledger + settlement
 app/services/review.py         post-battle learning
+app/services/shadow.py         Listed/Shadow boundary + move attribution + kill_check
 app/services/pulse.py          market event derivation
 app/services/watcher.py        cheap always-on Pulse refresh
 app/services/storage.py        MongoDB/in-memory repository abstraction

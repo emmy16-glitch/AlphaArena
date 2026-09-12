@@ -29,6 +29,9 @@ def battle_canonical_payload(battle: dict[str, Any]) -> str:
         "settled_price": float(battle.get("settled_price") or 0),
         "created_at": str(battle.get("created_at")),
         "settled_at": str(battle.get("settled_at")),
+        # Commitment sentence is part of the freeze — same object, no
+        # separate storage path. Empty string default keeps old battles verifiable.
+        "wrong_sentence": str(battle.get("wrong_sentence") or ""),
     }
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
@@ -42,7 +45,23 @@ def verify_battle_hash(battle: dict[str, Any]) -> bool:
     if not stored or battle.get("status") != "settled":
         return False
     try:
-        return str(stored) == battle_hash(battle)
+        if str(stored) == battle_hash(battle):
+            return True
+        # Legacy battles hashed before wrong_sentence existed: recompute
+        # the old canonical form exactly (stake as round(float, 2) float,
+        # no wrong_sentence key at all). Stored stakes are floats so this matches.
+        legacy_payload = {
+            "id": str(battle.get("id")),
+            "symbol": str(battle.get("symbol")),
+            "user_side": str(battle.get("user_side")),
+            "ai_side": str(battle.get("ai_side")),
+            "stake": round(float(battle.get("stake") or 0), 2),
+            "entry_price": float(battle.get("entry_price") or 0),
+            "settled_price": float(battle.get("settled_price") or 0),
+            "created_at": str(battle.get("created_at")),
+            "settled_at": str(battle.get("settled_at")),
+        }
+        return str(stored) == json.dumps(legacy_payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
     except Exception:
         return False
 
@@ -88,11 +107,31 @@ class ArenaService:
                     stated_confidence = round(max(0.0, min(100.0, float(raw_confidence))), 2)
                 except (TypeError, ValueError):
                     stated_confidence = None
+            wrong_raw = str(getattr(request, "wrong_sentence", None) or "").strip()
+            wrong_sentence = wrong_raw[:500] or None
+            risk_pct = 2.0
+            try:
+                risk_pct = float(getattr(request, "risk_pct", 2.0) or 2.0)
+            except (TypeError, ValueError):
+                risk_pct = 2.0
+            risk_pct = max(0.1, min(25.0, risk_pct))
+            # Kill/invalidation level reused from Invalidation-Radar logic:
+            # risk_pct of adverse move from entry. LONG kill is below entry,
+            # SHORT kill is above entry. Pure arithmetic.
+            if request.user_side == "LONG":
+                kill_price = round(entry * (1 - risk_pct / 100), 6)
+            elif request.user_side == "SHORT":
+                kill_price = round(entry * (1 + risk_pct / 100), 6)
+            else:
+                kill_price = None
             battle = {
                 "id": f"battle_{uuid4().hex[:12]}",
                 "player_id": player_id,
                 "symbol": request.symbol,
                 "thesis": request.thesis,
+                "wrong_sentence": wrong_sentence,
+                "risk_pct": risk_pct,
+                "kill_price": kill_price,
                 "user_side": request.user_side,
                 "ai_side": request.ai_side,
                 "opponent": request.opponent,
@@ -114,6 +153,51 @@ class ArenaService:
             await store.save("battles", battle["id"], battle)
             return battle
 
+    async def _attach_shadow(self, battle: dict[str, Any]) -> dict[str, Any]:
+        """Attach Listed/Shadow attribution from real Bitget candles.
+
+        Best-effort: never blocks settlement. On candle failure the
+        battle keeps shadow=None and the UI hides the card honestly.
+        """
+        try:
+            from app.services.shadow import attribute_moves, flatten_before_dark, kill_check
+
+            candles = await bitget_market.get_candles(str(battle.get("symbol")), interval="1H", limit=200)
+            attribution = attribute_moves(
+                float(battle.get("entry_price") or 0),
+                str(battle.get("user_side") or "LONG"),
+                candles,
+                granularity_label="1H",
+            )
+            kill = kill_check(
+                float(battle.get("entry_price") or 0),
+                str(battle.get("user_side") or "LONG"),
+                float(battle.get("kill_price") or 0) or None,
+                candles,
+            )
+            if kill and kill.get("kill_hit"):
+                # The kill level was actually touched: the kill candle's
+                # session/timestamp replace the last-candle defaults.
+                attribution["kill_hit"] = True
+                attribution["kill_at"] = kill.get("kill_at")
+                attribution["kill_session"] = kill.get("kill_session")
+                attribution["kill_price_touched"] = kill.get("kill_price_touched")
+            elif kill:
+                attribution["kill_hit"] = False
+            battle["shadow"] = attribution
+            flat = None
+            if battle.get("status") == "settled" and battle.get("settled_price") is not None:
+                flat = flatten_before_dark(
+                    float(battle.get("entry_price") or 0),
+                    str(battle.get("user_side") or "LONG"),
+                    float(battle.get("settled_price") or 0),
+                    attribution.get("last_listed_price"),
+                )
+            battle["flatten_before_dark"] = flat
+        except Exception:
+            pass
+        return battle
+
     async def _refresh(self, battle: dict[str, Any], price_by_symbol: dict[str, float]) -> dict[str, Any]:
         if battle.get("status") == "settled" and battle.get("settled_price") is not None:
             settled = float(battle["settled_price"])
@@ -124,6 +208,12 @@ class ArenaService:
             if not battle.get("settlement_hash"):
                 try:
                     battle["settlement_hash"] = battle_hash(battle)
+                    await store.save("battles", str(battle["id"]), battle)
+                except Exception:
+                    pass
+            if not battle.get("shadow"):
+                battle = await self._attach_shadow(battle)
+                try:
                     await store.save("battles", str(battle["id"]), battle)
                 except Exception:
                     pass
@@ -143,6 +233,7 @@ class ArenaService:
             battle["status"] = "settled"
             battle["settled_price"] = current
             battle["settled_at"] = datetime.now(timezone.utc).isoformat()
+            battle = await self._attach_shadow(battle)
             try:
                 battle["settlement_hash"] = battle_hash(battle)
             except Exception:
@@ -356,6 +447,9 @@ class ArenaService:
                     "settlement_hash": battle.get("settlement_hash"),
                     "hash_verified": verify_battle_hash(battle) if battle.get("status") == "settled" else None,
                     "thesis": battle.get("thesis"),
+                    "wrong_sentence": battle.get("wrong_sentence"),
+                    "shadow": battle.get("shadow"),
+                    "flatten_before_dark": battle.get("flatten_before_dark"),
                 }
             )
         return rows
@@ -370,6 +464,7 @@ class ArenaService:
             "stated_confidence",
             "pnl_pct", "pnl_dollars", "account_balance_after",
             "settled_at", "settlement_hash", "hash_verified", "thesis",
+            "wrong_sentence",
         ]
         buffer = io.StringIO()
         writer = csv.DictWriter(buffer, fieldnames=fieldnames)

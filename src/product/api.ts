@@ -71,12 +71,35 @@ export type PulseEvent = {
   score: number; price?: number; change_pct?: number; tags: string[]; detected_at: string;
 };
 
+export type ShadowAttribution = {
+  listed_move_pct: number; shadow_move_pct: number; total_move_pct: number;
+  kill_session: string | null; kill_at: string | null;
+  kill_hit?: boolean | null; kill_price_touched?: number | null;
+  candle_count: number;
+  granularity: string; is_estimate: boolean; last_listed_price: number | null;
+  session_label: string;
+};
+
+export type FlattenBeforeDark = {
+  flatten_price: number; flatten_pnl_pct: number; final_pnl_pct: number; saved_pct: number;
+};
+
+export type MorgueRow = {
+  id: string; symbol: string; thesis: string; wrong_sentence: string | null;
+  user_side: Direction; entry_price: number; settled_price: number | null;
+  user_pnl_pct: number; settled_at: string | null; settlement_hash: string | null;
+  shadow: ShadowAttribution | null;
+};
+
 export type BattleView = {
-  id: string; symbol: string; thesis: string; user_side: Direction; ai_side: Direction; opponent: string;
+  id: string; symbol: string; thesis: string; wrong_sentence?: string | null;
+  risk_pct?: number | null; kill_price?: number | null;
+  user_side: Direction; ai_side: Direction; opponent: string;
   stake: number; quantity?: number | null; entry_price: number; current_price: number; user_pnl_pct: number; ai_pnl_pct: number;
   created_at: string; expires_at: string; settled_at?: string | null; settled_price?: number | null;
   settlement_hash?: string | null; stated_confidence?: number | null;
   status: 'live'|'settled'; source: string;
+  shadow?: ShadowAttribution | null; flatten_before_dark?: FlattenBeforeDark | null;
 };
 
 export type PortfolioSummary = {
@@ -152,7 +175,7 @@ export const productApi = {
   portfolioStress: (body: { prompt: string; positions: PortfolioPosition[]; severity: number; duration: string }) =>
     apiData<PortfolioStressResponse>('/api/twin/portfolio', { method: 'POST', body: JSON.stringify(body) }),
   scenarioHistory: () => apiData<TwinResponse[]>('/api/twin/history'),
-  createBattle: (body: { symbol: string; user_side: Direction; ai_side: Direction; thesis: string; stake: number; duration_hours: number; opponent?: string; stated_confidence?: number }) =>
+  createBattle: (body: { symbol: string; user_side: Direction; ai_side: Direction; thesis: string; wrong_sentence?: string; risk_pct?: number; stake: number; duration_hours: number; opponent?: string; stated_confidence?: number }) =>
     apiData<BattleView>('/api/arena/battles', { method: 'POST', body: JSON.stringify(body) }),
   battles: () => apiData<BattleView[]>('/api/arena/battles'),
   battle: (id: string) => apiData<BattleView>(`/api/arena/battles/${encodeURIComponent(id)}`),
@@ -164,6 +187,8 @@ export const productApi = {
   backtest: (symbol: string) => apiData<BacktestReport>(`/api/research/backtest/${encodeURIComponent(symbol)}`),
   playbook: (scenarioId: string) => apiData<PlaybookConfig>(`/api/twin/playbook/${encodeURIComponent(scenarioId)}`),
   verifyBattle: (id: string) => apiData<{ battle_id: string; verified: boolean; settlement_hash: string | null }>(`/api/arena/battles/${encodeURIComponent(id)}/verify`),
+  morgue: () => apiData<MorgueRow[]>('/api/arena/morgue'),
+  sessionNow: () => apiData<{ now: string; session: 'listed' | 'shadow'; label: string }>('/api/session/now'),
   createTrader: (body: { name: string; style: TraderProfile['style']; risk_appetite: number; holding_period: TraderProfile['holding_period']; assets: string[] }) =>
     apiData<TraderProfile>('/api/traders', { method: 'POST', body: JSON.stringify(body) }),
   traders: () => apiData<TraderProfile[]>('/api/traders'),

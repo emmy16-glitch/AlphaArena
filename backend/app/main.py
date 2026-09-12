@@ -332,6 +332,42 @@ async def review_battle(battle_id: str, x_player_id: str | None = Header(default
     return {"data": await review_service.review(battle)}
 
 
+@app.get("/api/session/now")
+async def session_now() -> dict[str, object]:
+    from app.services.shadow import SESSION_LABEL, session_of
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    return {"data": {"now": now.isoformat(), "session": session_of(now), "label": SESSION_LABEL}}
+
+
+@app.get("/api/arena/morgue")
+async def thesis_morgue(x_player_id: str | None = Header(default=None)) -> dict[str, object]:
+    """Thesis Morgue — settled battles with verbatim commitment + session.
+
+    Read-only over existing battles. Dead theses only, newest first.
+    """
+    battles = await arena_service.list_battles(_player_id(x_player_id))
+    morgue = [
+        {
+            "id": battle.get("id"),
+            "symbol": battle.get("symbol"),
+            "thesis": battle.get("thesis"),
+            "wrong_sentence": battle.get("wrong_sentence"),
+            "user_side": battle.get("user_side"),
+            "entry_price": battle.get("entry_price"),
+            "settled_price": battle.get("settled_price"),
+            "user_pnl_pct": battle.get("user_pnl_pct"),
+            "settled_at": battle.get("settled_at"),
+            "settlement_hash": battle.get("settlement_hash"),
+            "shadow": battle.get("shadow"),
+        }
+        for battle in battles
+        if battle.get("status") == "settled"
+    ]
+    return {"data": morgue}
+
+
 @app.get("/api/arena/portfolio")
 async def portfolio(x_player_id: str | None = Header(default=None)) -> dict[str, object]:
     return {"data": await arena_service.portfolio(_player_id(x_player_id))}

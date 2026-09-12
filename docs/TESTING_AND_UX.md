@@ -51,7 +51,11 @@ The deterministic browser fixture tests include:
 - submitting a NightWatch thesis and receiving a support/objection/invalidation result,
 - running a MarketTwin scenario and seeing model provenance,
 - seeing the paper-only guardrail before an Arena battle,
-- receiving a readable error if the live Pulse upstream request fails.
+- receiving a readable error if the live Pulse upstream request fails,
+- recording a Shadow Session battle (commitment sentence + kill level) and seeing the where-the-move-occurred bars on the settled card (`e2e/shadow-session.spec.ts`),
+- verifying a settled battle's freeze (`Verify freeze` → `hash matches`),
+- opening the Thesis Morgue and confirming a dead-thesis receipt renders,
+- asserting Morgue/Arena/Battle have no horizontal overflow at narrow viewports.
 
 The error test also asserts that the rendered page does not leak strings such as `502`, `localhost:8000` or `ECONN`.
 
@@ -73,6 +77,8 @@ System fallbacks are declared for every role. This removes the previous overlap 
    - NightWatch: why might I be wrong?
    - Lab: what if one assumption changes?
    - Arena: how does my recorded paper thesis perform?
+    - Shadow Session: where did the move occur — Listed or after-hours tape?
+    - Morgue: which dead theses have receipts?
 3. Product actions use verbs instead of internal engineering terms.
 4. Loading states explain what is happening without pretending a specific upstream step has already succeeded.
 5. Errors say what happened and what the user can do next.

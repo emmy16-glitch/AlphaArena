@@ -182,16 +182,45 @@ class BattleCreateRequest(BaseModel):
     user_side: Direction = "LONG"
     ai_side: Direction = "WAIT"
     thesis: str = Field(min_length=4, max_length=1200)
+    # Commitment ritual: locked at creation, hashed into the freeze,
+    # played back verbatim at settlement. Never paraphrased.
+    wrong_sentence: str | None = Field(default=None, max_length=500)
+    risk_pct: float = Field(default=2.0, ge=0.1, le=25)
     stake: float = Field(default=10_000, gt=0, le=100_000)
     duration_hours: int = Field(default=24, ge=1, le=168)
     opponent: str = Field(default="NightWatch", min_length=1, max_length=80)
     stated_confidence: float | None = Field(default=None, ge=0, le=100)
 
 
+class ShadowAttribution(BaseModel):
+    listed_move_pct: float = 0.0
+    shadow_move_pct: float = 0.0
+    total_move_pct: float = 0.0
+    kill_session: str | None = None
+    kill_at: str | None = None
+    kill_hit: bool | None = None
+    kill_price_touched: float | None = None
+    candle_count: int = 0
+    granularity: str = "1H"
+    is_estimate: bool = True
+    last_listed_price: float | None = None
+    session_label: str = "Listed = NYSE hours. Shadow = everything else — nights, weekends, holidays."
+
+
+class FlattenBeforeDark(BaseModel):
+    flatten_price: float
+    flatten_pnl_pct: float
+    final_pnl_pct: float
+    saved_pct: float
+
+
 class BattleView(BaseModel):
     id: str
     symbol: str
     thesis: str
+    wrong_sentence: str | None = None
+    risk_pct: float | None = None
+    kill_price: float | None = None
     user_side: Direction
     ai_side: Direction
     opponent: str
@@ -209,6 +238,8 @@ class BattleView(BaseModel):
     stated_confidence: float | None = None
     status: Literal["live", "settled"]
     source: str = "bitget"
+    shadow: ShadowAttribution | None = None
+    flatten_before_dark: FlattenBeforeDark | None = None
 
 
 class PortfolioSummary(BaseModel):

@@ -10,6 +10,10 @@ This checklist is the final gate before the hackathon branch is merged.
 - [ ] Historical analogues are described as observations, not predictions.
 - [ ] MarketTwin numbers are deterministic outputs; generated text cannot overwrite them.
 - [ ] A live battle is never described as settled.
+- [ ] Shadow Session only says a move **occurred in** a Listed/Shadow bucket — never "predicted" or "detected".
+- [ ] A kill is only claimed when the kill level was actually touched on the observed candle path.
+- [ ] Shadow Session timestamps are labelled as candle-bucket estimates when granularity > 1m.
+- [ ] The commitment sentence is read back verbatim, never paraphrased.
 
 ## Budget
 
@@ -39,6 +43,7 @@ This checklist is the final gate before the hackathon branch is merged.
 - [ ] Keyboard focus is visible.
 - [ ] Reduced-motion preference is respected.
 - [ ] Core pages have no horizontal overflow at 320px.
+- [ ] Thesis Morgue and battle cards wrap hashes/session metadata without horizontal overflow.
 - [ ] Typography uses the three-role system consistently.
 - [ ] Important errors include a next action and no stack trace/HTTP jargon.
 
@@ -48,7 +53,7 @@ This checklist is the final gate before the hackathon branch is merged.
 - [ ] Vite production build passes.
 - [ ] Production dependency audit has no high-severity findings.
 - [ ] Ruff passes.
-- [ ] Backend unit/safety tests pass.
+- [ ] Backend unit/safety tests pass (including Shadow Session boundary + kill-attribution + commitment-hash tests).
 - [ ] Python compile/import checks pass.
 - [ ] Vibe pinned-package smoke passes.
 - [ ] Desktop Chromium passes.
@@ -64,6 +69,7 @@ This checklist is the final gate before the hackathon branch is merged.
 - [ ] README explains the product in under one screen before deep technical details.
 - [ ] Bitget implementation is easy for a judge to locate.
 - [ ] Vibe-Trading implementation is easy for a judge to locate.
+- [ ] Shadow Session implementation and judge script are easy to locate (`docs/SHADOW_SESSION.md`).
 - [ ] Budget/safety rules are documented as enforceable contracts, not marketing claims.
 - [ ] Three-minute judge demo has been rehearsed against the actual deployed build.
 - [ ] Final deployment URLs and repository URL are correct in the submission.

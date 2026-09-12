@@ -27,6 +27,24 @@ def canonical(battle: dict) -> str:
         "settled_price": float(battle.get("exit_price") or battle.get("settled_price") or 0),
         "created_at": str(battle.get("timestamp") or battle.get("created_at")),
         "settled_at": str(battle.get("settled_at")),
+        # Commitment sentence is part of the freeze (empty default keeps
+        # legacy exports verifiable via the fallback below).
+        "wrong_sentence": str(battle.get("wrong_sentence") or ""),
+    }
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def canonical_legacy(battle: dict) -> str:
+    payload = {
+        "id": str(battle.get("battle_id") or battle.get("id")),
+        "symbol": str(battle.get("asset") or battle.get("symbol")),
+        "user_side": str(battle.get("direction") or battle.get("user_side")),
+        "ai_side": str(battle.get("opponent_side") or battle.get("ai_side")),
+        "stake": round(float(battle.get("stake") or 0), 2),
+        "entry_price": float(battle.get("entry_price") or 0),
+        "settled_price": float(battle.get("exit_price") or battle.get("settled_price") or 0),
+        "created_at": str(battle.get("timestamp") or battle.get("created_at")),
+        "settled_at": str(battle.get("settled_at")),
     }
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
@@ -50,9 +68,10 @@ def main() -> int:
         if str(row.get("status")) != "settled":
             print(f"SKIP {row.get('battle_id')}: not settled")
             continue
-        expected = hashlib.sha256(canonical(row).encode()).hexdigest()
         stored = str(row.get("settlement_hash") or "")
-        ok = expected == stored
+        expected = hashlib.sha256(canonical(row).encode()).hexdigest()
+        legacy = hashlib.sha256(canonical_legacy(row).encode()).hexdigest()
+        ok = expected == stored or legacy == stored
         print(f"{'PASS' if ok else 'FAIL'} {row.get('battle_id')}: {stored[:12]}...")
         if not ok:
             failures += 1

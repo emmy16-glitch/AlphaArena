@@ -10,13 +10,14 @@ const ConnectedLab = lazy(() => import('./features/MarketTwinScreen'));
 const ConnectedTrader = lazy(() => import('./components/ConnectedTrader'));
 const ConnectedArena = lazy(() => import('./features/ArenaScreens').then((module) => ({ default: module.ArenaScreen })));
 const ConnectedBattle = lazy(() => import('./features/ArenaScreens').then((module) => ({ default: module.BattleScreen })));
+const ConnectedMorgue = lazy(() => import('./features/MorgueScreen'));
 const ConnectedPortfolio = lazy(() => import('./features/ArenaScreens').then((module) => ({ default: module.PortfolioScreen })));
 const ConnectedLeaderboard = lazy(() => import('./features/ArenaScreens').then((module) => ({ default: module.LeaderboardScreen })));
 const ConnectedTrackRecord = lazy(() => import('./features/TrackRecordScreen'));
 
 type Route = { view: string; payload?: Record<string, unknown> };
 
-const VALID_VIEWS = new Set(['landing', 'pulse', 'asset', 'nightwatch', 'lab', 'arena', 'battle', 'leaderboard', 'portfolio', 'track-record', 'create']);
+const VALID_VIEWS = new Set(['landing', 'pulse', 'asset', 'nightwatch', 'lab', 'arena', 'battle', 'morgue', 'leaderboard', 'portfolio', 'track-record', 'create']);
 
 function initialRoute(): Route {
   const state = window.history.state?.alphaArenaRoute as Route | undefined;
@@ -58,13 +59,14 @@ export default function App() {
   const battleId = route.payload?.id as string | undefined;
 
   return <Suspense fallback={<ScreenLoading />}>
-    {route.view === 'landing' ? <Landing onEnter={(view) => nav(view)} /> : <AppShell view={route.view} onNav={(view) => nav(view)} onHome={() => nav('landing')} onCreate={() => nav('create')}>
+    {route.view === 'landing' ? <Landing onEnter={(view: string, payload?: unknown) => nav(view, payload)} /> : <AppShell view={route.view} onNav={(view: string) => nav(view)} onHome={() => nav('landing')} onCreate={() => nav('create')}>
       {route.view === 'pulse' && <ConnectedPulse onNav={nav} />}
       {route.view === 'asset' && <ConnectedAsset symbol={symbol} onNav={nav} />}
       {route.view === 'nightwatch' && <ConnectedNightWatch symbol={symbol} onNav={nav} />}
       {route.view === 'lab' && <ConnectedLab onNav={nav} initialPrompt={prompt} />}
       {route.view === 'arena' && <ConnectedArena onNav={nav} initialSymbol={symbol} initialThesis={thesis} initialAiSide={aiSide} />}
       {route.view === 'battle' && <ConnectedBattle onNav={nav} battleId={battleId} />}
+      {route.view === 'morgue' && <ConnectedMorgue onNav={nav} />}
       {route.view === 'leaderboard' && <ConnectedLeaderboard />}
       {route.view === 'track-record' && <ConnectedTrackRecord onNav={nav} />}
       {route.view === 'portfolio' && <ConnectedPortfolio onNav={nav} />}

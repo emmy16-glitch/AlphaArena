@@ -29,6 +29,7 @@ It turns a market idea into a falsifiable thesis, challenges it with opposing ev
   - [Judging without Bitget Reality access](#judging-without-bitget-reality-access)
 - [Why this is different](#why-this-is-different)
 - [Features](#features)
+- [Shadow Session](#shadow-session-the-market-that-never-sleeps)
 - [Tech stack](#tech-stack)
 - [How it works](#how-it-works)
 - [Bitget implementation](#bitget-implementation)
@@ -54,12 +55,14 @@ It turns a market idea into a falsifiable thesis, challenges it with opposing ev
 1. **Pulse — Watch.** Open the live market feed and choose a Reality asset worth investigating.
 2. **NightWatch — Challenge.** State a direction and thesis. AlphaArena builds the strongest support and objection, shows evidence quality, stress scenarios, and explicit invalidation conditions.
 3. **MarketTwin — Simulate.** Change one market assumption — e.g. “Nasdaq falls 5%” — and inspect transparent impact ranges. Historical beta is used only when Vibe-Trading returns enough aligned observations; otherwise the UI says a transparent AlphaArena prior was used.
-4. **Arena — Test.** Record a paper position at the live Bitget Reality market price. The battle is settled from later observed market prices and then frozen, so the result cannot be rewritten after the fact.
-5. **Review — Learn.** After settlement, compare the original thesis with the outcome and create a falsifiable rule for the next paper battle.
+5. **Arena — Test.** Commit the thesis to a paper battle at the live Bitget Reality market price. Enter the **Shadow Session commitment** — *"If I am wrong, it will be because…"* — which is locked, hashed into the freeze, and read back verbatim. Set a kill level. The battle is settled from later observed market prices and frozen so the result cannot be rewritten.
+6. **Shadow Session — the tape that never sleeps.** Because Bitget Reality trades 24/7, every battle splits its move into **Listed** (NYSE hours) vs **Shadow** (nights, weekends, holidays) from real candles. You see exactly *where* the move occurred — including a kill at 03:11 UTC on a Saturday — with honest ~1h candle-bucket timestamps.
+7. **Morgue — dead theses, with receipts.** Settled battles only, showing the verbatim sentence, the session badge, survival/kill status, and the frozen hash. Verify the freeze with one click: **`hash matches`**.
+8. **Review — Learn.** After settlement, compare the original thesis with the outcome and create a falsifiable rule for the next paper battle.
 
 One connected loop:
 
-**Watch → Challenge → Simulate → Battle → Review → Improve**
+**Watch → Challenge → Simulate → Battle → Shadow → Review → Improve**
 
 For a rehearsed walkthrough, see [docs/JUDGE_DEMO.md](docs/JUDGE_DEMO.md).
 
@@ -85,6 +88,46 @@ AlphaArena is deliberately **not** another “AI says BUY” dashboard. It separ
 - **Deterministic AlphaArena code** calculates market metrics, stress impacts, uncertainty, and paper PnL.
 - **Qwen 3.8 27B** (via Groq, free hackathon path) is the optional high-reasoning synthesis layer. It may explain results but **cannot overwrite deterministic numbers or invent missing evidence**.
 - **Arena** uses a fixed paper balance. There is no wallet connection, deposit, withdrawal, or exchange order endpoint anywhere in the product.
+- **Shadow Session** is the differentiator that only makes sense because Bitget Reality is **24/7** while the real NYSE is not. Splitting every battle move into **Listed** vs **Shadow** turns the after-hours gap into *live, tradable tape* — and the settlement card reads your own commitment sentence back to you verbatim.
+
+---
+
+## Shadow Session — the market that never sleeps
+
+Bitget Reality tokenized stocks (`rNVDA`, `rAAPL`, …) trade 24/7. The real NYSE only trades **Mon–Fri 09:30–16:00 America/New_York**. Everything else — nights, weekends, and holidays — is the **Shadow session**: live tape while Wall Street is closed.
+
+### Session boundary
+
+- **Listed** = inside NYSE cash hours on a non-holiday weekday (Eastern Time).
+- **Shadow** = everything else (nights, weekends, full-day US market holidays).
+- DST is handled by `zoneinfo("America/New_York")` — the open shifts automatically between 13:30–20:00 UTC (DST) and 14:30–21:00 UTC (standard), no manual table needed. A small hardcoded 2025–2026 US holiday list covers full-day Shadow for demo scope.
+
+### Commitment ritual (hashed into the freeze)
+
+At battle creation the user must complete: **"If I am wrong, it will be because ___"**. The sentence is stored in the **same object** as the paper freeze and included in the same `settlement_hash` canonical payload — changing one word changes the hash. At settlement it is read back **verbatim**, never paraphrased by any AI.
+
+### Where-the-move-occurred bars
+
+At settlement (and live), AlphaArena pulls real Bitget candles and splits the entry→now move into Listed vs Shadow:
+
+```text
+Listed:  +0.4% █▁
+Shadow: −3.1% ██████
+Kill hit ~03:11 UTC — in Shadow session.
+You said: "If I am wrong, it will be because weekend tape gaps against me."
+```
+
+- The **Kill hit** line only appears when the kill level was *actually touched* on the observed candle path (`kill_check`); otherwise the card says **"Thesis survived — kill level was not touched."**
+- **Flatten-before-dark** shows the counterfactual: what you would have had if you'd closed at the last Listed close (observed arithmetic, never a recommendation).
+- **Honest granularity:** candles are ~1h buckets, so timestamps show `~03:11 UTC` with a `Timestamps are candle-bucket estimates, not exact fills.` disclaimer. If a 1-minute feed is ever available, switch one interval and the `~` disappears automatically.
+
+### Thesis Morgue (`#/morgue`)
+
+Other desks show wins. This wall shows **dead theses with receipts**: the verbatim sentence, a `killed` / `survived` pill, the session badge, and the frozen hash. Use **Verify freeze** on any settled battle to prove it was never rewritten.
+
+Pure data bucketing + string playback. **No new LLM calls for this feature.**
+
+See [docs/SHADOW_SESSION.md](docs/SHADOW_SESSION.md).
 
 ---
 
@@ -96,6 +139,8 @@ AlphaArena is deliberately **not** another “AI says BUY” dashboard. It separ
 | ⚖️ **NightWatch** | Adversarial thesis analysis: strongest support vs. strongest objection, evidence quality, deterministic stress cases, invalidation conditions |
 | 🧪 **MarketTwin (Lab)** | Single-assumption what-if engine with transparent impact ranges and labelled calibration source (measured Vibe beta vs. AlphaArena prior) |
 | 🏟️ **Arena** | Paper battles at observed live prices, LONG / SHORT / WAIT, serialized capital checks, immutable settlement |
+| 🌙 **Shadow Session** | Listed vs Shadow move attribution from real candles, "If I am wrong…" commitment hashed into the freeze and read back verbatim, kill/survive receipt, flatten-before-dark counterfactual ([docs/SHADOW_SESSION.md](docs/SHADOW_SESSION.md)) |
+| 💀 **Thesis Morgue** | Settled dead theses only — verbatim sentence, session badge, kill/survive status, frozen hash, one-click **Verify freeze** |
 | 📊 **Portfolio & Ranks** | Virtual exposure tracking and settled-battle leaderboard (one observation, never “proof of edge”) |
 | 📝 **Review** | Post-settlement learning: thesis-vs-outcome comparison with deterministic fallback when the model is unavailable |
 | 🛡️ **Guardrails** | Paper-only ledger, model budget fuse, human-readable errors, graceful degradation for every integration |
@@ -124,7 +169,7 @@ AlphaArena is deliberately **not** another “AI says BUY” dashboard. It separ
 ## How it works
 
 ```text
-React + Vite UI  (Pulse · NightWatch · MarketTwin · Arena · Review)
+React + Vite UI  (Pulse · NightWatch · MarketTwin · Arena · Shadow Session · Morgue · Review)
        │
        ▼ JSON / HTTPS
 FastAPI application
@@ -133,7 +178,7 @@ FastAPI application
   │       │        └─────────── Qwen 3.8 high reasoning via Groq (user-triggered, budget fused)
   │       └──────────────────── Bitget Signal MCP context
   ├──────────────────────────── Vibe-Trading MCP sidecar (research only)
-  └──────────────────────────── Bitget UTA v3 Reality market data
+  └──────────────────────────── Bitget UTA v3 Reality market data (+ candles for Shadow attribution)
 ```
 
 The deterministic decision engine sits in the FastAPI service (`backend/app/`). External reasoning/research failures degrade to transparent fallbacks instead of blocking the product.
@@ -150,7 +195,7 @@ Market-data routes only:
 
 - `GET /api/v3/market/instruments?category=SPOT` — discover instruments, verify the `isReality` flag.
 - `GET /api/v3/market/tickers` — live price, 24h change, bid/ask, turnover, range.
-- `GET /api/v3/market/candles` — Reality candlesticks for sparklines and short-window risk metrics.
+- `GET /api/v3/market/candles` — Reality candlesticks for sparklines, short-window risk metrics, and **Shadow Session Listed/Shadow attribution** (hourly candles by default).
 
 AlphaArena contains **no** call to Bitget Reality order-placement or UTA trade endpoints. CI has a guard test that fails if a Reality order path or `/api/v3/trade/` path appears in backend application source.
 
@@ -266,7 +311,7 @@ pytest -q
 python -m compileall -q app
 ```
 
-GitHub Actions also runs browser tests across Chromium, Firefox, and WebKit plus iPhone, Android, tablet, and a 320×568 hostile viewport — covering horizontal overflow, browser navigation, responsive controls, mobile form typography, reduced motion, NightWatch, MarketTwin, paper-only guardrails, and human-readable error handling.
+GitHub Actions also runs browser tests across Chromium, Firefox, and WebKit plus iPhone, Android, tablet, and a 320×568 hostile viewport — covering horizontal overflow, browser navigation, responsive controls, mobile form typography, reduced motion, NightWatch, MarketTwin, Arena, Shadow Session (commitment lock, where-the-move-occurred bars, verify-freeze, Morgue), paper-only guardrails, and human-readable error handling.
 
 See [docs/TESTING_AND_UX.md](docs/TESTING_AND_UX.md) and [docs/CI_NOTES.md](docs/CI_NOTES.md).
 
@@ -283,6 +328,9 @@ Useful read-only endpoints (also live on the Vercel deployment under `/api/...`)
 - `GET /api/market/instruments/reality`
 - `GET /api/market/assets`
 - `GET /api/pulse/status`
+- `GET /api/session/now` — current Listed/Shadow session (debug/demo)
+- `GET /api/arena/morgue` — settled battles with shadow attribution + commitment sentence
+- `GET /api/arena/battles/{id}/verify` — recompute + verify the settlement freeze
 
 `/api/budget/status` makes the paper-only and model-budget guarantees visible rather than leaving them as README promises.
 
@@ -293,7 +341,8 @@ Useful read-only endpoints (also live on the Vercel deployment under `/api/...`)
 ```text
 AlphaArena/
 ├── src/                    # React + Vite frontend
-│   ├── features/           # Pulse, NightWatch, MarketTwin, Arena, Landing screens
+│   ├── features/           # Pulse, NightWatch, MarketTwin, Arena, ShadowSession,
+│   │                       # Morgue, Landing screens
 │   ├── components/         # AppShell, connected data screens, ErrorBoundary, ui kit
 │   ├── market/ product/    # market data provider + product API client
 │   └── lib/ utils/         # api client, formatting, helpers
@@ -301,7 +350,7 @@ AlphaArena/
 │   ├── app/main.py         # routes + friendly problem handlers
 │   ├── app/config.py       # env / budget configuration
 │   └── app/services/       # bitget, vibe, signal, qwen, analytics,
-│                           # nightwatch, market_twin, arena, review,
+│                           # nightwatch, market_twin, arena, review, shadow,
 │                           # pulse, watcher, storage, budget,
 │                           # backtest, playbook, calibration
 │   └── scripts/            # verify_battles.py, generate_backtest_report.py
@@ -337,6 +386,8 @@ AlphaArena must never claim:
 - a simulated impact is a prediction,
 - one paper battle proves a repeatable edge,
 - a historical analogue predicts the next move,
+- a move was **"predicted"** or **"detected"** — Shadow Session only ever says a move **occurred in** a Listed/Shadow bucket,
+- a kill happened when the level was not actually touched on the observed path,
 - unavailable research is live evidence,
 - a virtual balance is withdrawable money,
 - a Bitget trade was placed.
@@ -354,6 +405,7 @@ Enforced by [docs/QUALITY_CHECKLIST.md](docs/QUALITY_CHECKLIST.md).
 | [docs/README.md](docs/README.md) | Docs hub / reading order |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Trust boundaries, services, graceful degradation |
 | [docs/BITGET_INTEGRATION.md](docs/BITGET_INTEGRATION.md) | Exact UTA v3 routes + the no-order boundary |
+| [docs/SHADOW_SESSION.md](docs/SHADOW_SESSION.md) | Listed/Shadow boundary, kill attribution, commitment mechanic, morgue, judge script |
 | [docs/VIBE_TRADING.md](docs/VIBE_TRADING.md) | Sidecar isolation, evidence, calibration math, provenance |
 | [docs/BUDGET_AND_SAFETY.md](docs/BUDGET_AND_SAFETY.md) | Paper-capital, model-call, background-cost invariants |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Vercel + Compose + Atlas deployment runbook |

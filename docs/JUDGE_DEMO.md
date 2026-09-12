@@ -36,23 +36,34 @@ Open Lab with a simple adverse scenario such as “Nasdaq falls 5%.”
 
 Point to the model-source line.
 
-## 2:10–2:45 — Arena
+## 2:10–2:45 — Arena + Shadow Session
 
 Open Arena.
 
-> Now I can commit the thesis to a paper battle at the observed Bitget Reality price. There is no deposit, wallet or exchange order endpoint. The $100,000 balance is virtual. When the horizon ends, AlphaArena freezes the observed settlement price and the result cannot be rewritten by a later price.
+> Now I can commit the thesis to a paper battle at the observed Bitget Reality price. There is no deposit, wallet or exchange order endpoint. The $100,000 balance is virtual. Before entry I must finish the commitment line — *"If I am wrong, it will be because…"* — which is hashed into the freeze and read back verbatim. I also set a kill level. When the horizon ends, AlphaArena freezes the observed settlement price and the result cannot be rewritten by a later price.
 
-If a previously settled battle exists, show its review. Otherwise show the live battle and say it is still live.
+If a settled battle exists, show its review and the **Shadow Session card**:
+
+> *"Wall Street closed. Our market didn't."* This battle split its move into **Listed** (+0.4% during NYSE hours) versus **Shadow** (−3.1%).
+> The kill happened at **~03:11 UTC on a Saturday** — in the **Shadow** session.
+> And this is what I wrote before entry, read back verbatim: *"If I am wrong, it will be because weekend tape gaps against me."*
+> Timestamps are candle-bucket estimates — the market feed here is hourly, so we say `~`, we don't fake exact fills.
+
+Click **Verify freeze** → green **`hash matches`**.
+
+Then open the **Thesis Morgue** (`#/morgue`):
+
+> Other desks show wins. We show receipts. Every dead thesis here keeps its verbatim sentence, a killed/survived badge, and a frozen hash you can recheck.
 
 ## 2:45–3:00 — Close
 
-> AlphaArena is not trying to replace the trader. It is trying to make the trader's reasoning falsifiable. Predict less. Test more. Let the market decide.
+> AlphaArena is not trying to replace the trader. It is trying to make the trader's reasoning falsifiable — including at 3am on a weekend, when the tape is still alive but Wall Street is not. Predict less. Test more. Let the market decide.
 
 ## Technical questions judges may ask
 
 **Where is Bitget used?**
 
-UTA v3 Reality instrument discovery, ticker data and market candlesticks; those prices also mark/settle paper battles.
+UTA v3 Reality instrument discovery, ticker data and market candlesticks; those prices also mark/settle paper battles, and hourly candles power Shadow Session Listed/Shadow attribution.
 
 **Where is AI used?**
 
@@ -69,3 +80,7 @@ Pulse's timer uses public market metrics only. The model client has a configurab
 **Can it place a Bitget order?**
 
 No. The current application has no Bitget trade/order path, and CI fails if one is introduced into backend application source.
+
+**What is Shadow Session?**
+
+A differentiator that only makes sense on Bitget. Real NYSE stocks close Friday evening and reopen Monday; Bitget Reality tokenized stocks keep trading 24/7. Shadow Session tags every battle candle **Listed** (NYSE hours) vs **Shadow** (nights/weekends/holidays) and shows *where* the move occurred — with timestamps labelled as candle-bucket estimates. It uses no LLM: pure bucketing + reading the user's own commitment sentence back verbatim.

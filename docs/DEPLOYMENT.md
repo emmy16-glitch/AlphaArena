@@ -58,7 +58,11 @@ https://alphaarena.vercel.app/api/health       # {"status": ...}
 https://alphaarena.vercel.app/api/budget/status
 https://alphaarena.vercel.app/api/integrations/status
 https://alphaarena.vercel.app/api/market/assets
+https://alphaarena.vercel.app/api/session/now  # {"session": "listed"|"shadow", ...} (Shadow Session)
+https://alphaarena.vercel.app/#/morgue         # Thesis Morgue (settled dead theses)
 ```
+
+Shadow Session adds **no new environment variables** — it reuses the existing Bitget market feed and candle endpoint, the same settlement system, and the same `settlement_hash` freeze.
 
 For the full rehearsed flow, follow [JUDGE_DEMO.md](JUDGE_DEMO.md) against the live URL.
 
@@ -113,6 +117,8 @@ Storage is abstracted in `backend/app/services/storage.py`, so no code change is
 - [ ] `/api/health` and `/api/budget/status` respond (paper-only, background LLM = 0).
 - [ ] Pulse shows live vs. preview labelling truthfully.
 - [ ] NightWatch → MarketTwin → Arena → Review flow rehearsed per [JUDGE_DEMO.md](JUDGE_DEMO.md).
+- [ ] Shadow Session: one settled battle shows Listed/Shadow bars, the verbatim commitment sentence, and a **Verify freeze** that returns `hash matches`.
+- [ ] Thesis Morgue loads at `/#/morgue` with no horizontal overflow on mobile.
 - [ ] `FRONTEND_ORIGINS` includes the production URL.
 - [ ] Secrets only in environment variables; no `.env` committed (see `.gitignore`).
 - [ ] Release gate green: [QUALITY_CHECKLIST.md](QUALITY_CHECKLIST.md).

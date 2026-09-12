@@ -5,8 +5,8 @@ AlphaArena is intentionally split into a small interactive frontend, a determini
 ```text
 ┌───────────────────────────────────────────────────────────────┐
 │ React + Vite                                                  │
-│ Pulse · NightWatch · MarketTwin · Arena · Review              │
-│ friendly errors · responsive shell · paper guardrails         │
+│ Pulse · NightWatch · MarketTwin · Arena · Shadow · Morgue      │
+│ · Review · friendly errors · responsive shell · paper guards  │
 └──────────────────────────────┬────────────────────────────────┘
                                │ JSON / HTTPS
                                ▼
@@ -14,12 +14,14 @@ AlphaArena is intentionally split into a small interactive frontend, a determini
 │ FastAPI                                                       │
 │                                                               │
 │ Bitget adapter ───────────────► Reality public market data     │
+│                                 (tickers + candles for Shadow) │
 │ Vibe adapter ─────────────────► research-only MCP sidecar      │
 │ Signal adapter ────────────────► Bitget Signal MCP context     │
 │ Qwen client ───────────────────► Groq-hosted Qwen 3.8 synthesis│
 │                                                               │
 │ deterministic analytics · budget fuse · paper ledger          │
-│ immutable settlement · Pulse watcher · friendly problem API   │
+│ immutable settlement · Shadow bucketing · Pulse watcher       │
+│ friendly problem API                                         │
 └──────────────────────────────┬────────────────────────────────┘
                                │ optional
                                ▼
@@ -39,7 +41,9 @@ Core calculations live in normal application code:
 - beta/correlation calibration,
 - paper PnL,
 - free/deployed paper capital,
-- settlement and leaderboard values.
+- settlement and leaderboard values,
+- Shadow Session Listed/Shadow bucketing of each battle's move,
+- kill/survive receipt and flatten-before-dark counterfactual.
 
 Qwen receives those facts only after they exist. Its job is to challenge and explain, not manufacture the numbers the interface later treats as facts.
 
@@ -56,6 +60,8 @@ Pulse     = what changed?
 NightWatch= why might my thesis be wrong?
 Lab       = what if the world changes?
 Arena     = how does my paper thesis perform?
+Shadow    = where did the move occur — Listed or after-hours tape?
+Morgue    = which dead theses have receipts?
 Portfolio = what is my virtual exposure?
 Ranks     = how have recorded paper battles compared?
 ```

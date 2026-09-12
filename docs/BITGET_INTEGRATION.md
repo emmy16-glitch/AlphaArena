@@ -61,7 +61,11 @@ From those values the adapter derives the display price, absolute/percentage 24-
 GET /api/v3/market/candles?category=SPOT&symbol=rNVDAUSDT&interval=1H&limit=24&type=market
 ```
 
-Bitget's Reality guide states that rToken candlesticks use the `market` candle type and support a limited set of intervals including `1H`. AlphaArena uses the latest 24 hourly closes for the lightweight chart and short-window deterministic risk metrics.
+Bitget's Reality guide states that rToken candlesticks use the `market` candle type and support a limited set of intervals including `1H`. AlphaArena uses the latest 24 hourly closes for the lightweight chart and short-window deterministic risk metrics, and longer hourly histories for Shadow Session attribution.
+
+### Candles for Shadow Session
+
+`backend/app/services/bitget.py → get_candles()` reads Reality candles (`type=market`) and returns them as `[{"ts": ms, "close": price}]`. `backend/app/services/shadow.py` tags each candle `listed` or `shadow` and splits the battle's entry→now move into the two buckets. The default interval is `1H`, so the UI labels timestamps as **candle-bucket estimates** (`~03:11 UTC`, never a false exact fill). If a `1m` feed becomes available, the caller switches the interval and the estimate label drops automatically.
 
 ## What AlphaArena deliberately does not use
 

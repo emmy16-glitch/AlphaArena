@@ -93,6 +93,34 @@ class BitgetMarketClient:
             pass
         return f"r{ticker}USDT"
 
+    async def get_candles(self, display_symbol: str, interval: str = "1H", limit: int = 200) -> list[dict[str, Any]]:
+        """Raw Reality candles for honest session attribution.
+
+        Returns [{"ts": ms, "close": price}] sorted oldest-first.
+        Never synthesises candles — empty list means unavailable.
+        """
+        exchange_symbol = await self._exchange_symbol(display_symbol)
+        safe_interval = interval if interval in {"1m", "5m", "15m", "30m", "1H", "4H", "1D"} else "1H"
+        safe_limit = max(1, min(1000, int(limit)))
+        payload = await self._get(
+            "/api/v3/market/candles",
+            {"category": "SPOT", "symbol": exchange_symbol, "interval": safe_interval, "limit": str(safe_limit), "type": "market"},
+        )
+        rows = payload.get("data") or []
+        candles: list[dict[str, Any]] = []
+        for row in rows:
+            if not isinstance(row, list) or len(row) < 5:
+                continue
+            try:
+                ts = int(row[0])
+                close = _to_float(row[4])
+            except (TypeError, ValueError):
+                continue
+            if ts > 0 and close > 0:
+                candles.append({"ts": ts, "close": close})
+        candles.sort(key=lambda row: int(row["ts"]))
+        return candles
+
     async def get_asset(self, display_symbol: str) -> dict[str, Any]:
         if display_symbol not in DISPLAY_TICKERS:
             raise BitgetError(f"Unsupported AlphaArena symbol: {display_symbol}")
