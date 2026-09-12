@@ -27,6 +27,13 @@ __pycache__/
 # Local binary blobs / one-off tooling scripts (not part of the product).
 ffmpeg_7%3a6.1.1-3ubuntu5_amd64.deb
 *.deb
+# Promo videos are distributed via releases, not tracked in git.
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.m4v
 playwright-report/
 test-results/
 .vercel
