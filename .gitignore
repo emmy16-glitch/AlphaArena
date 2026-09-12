@@ -24,6 +24,9 @@ id_ed25519.pub
 __pycache__/
 *.pyc
 .DS_Store
+# Local binary blobs / one-off tooling scripts (not part of the product).
+ffmpeg_7%3a6.1.1-3ubuntu5_amd64.deb
+*.deb
 playwright-report/
 test-results/
 .vercel
