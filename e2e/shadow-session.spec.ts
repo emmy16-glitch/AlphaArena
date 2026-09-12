@@ -18,11 +18,7 @@ test('Shadow Session: arena form locks commitment, settled card shows bars + ver
 
 test('Shadow Session: settled battle verifies freeze and morgue shows receipt', async ({ page }) => {
   await mockApi(page);
-  await page.goto('/#/battle');
-  // Battle screen falls back to latest battle; route mock directly for determinism.
-  await page.goto('/#/arena');
-  await page.evaluate(() => window.localStorage.clear());
-  await page.goto('/#/battle');
+  // Register before any navigation so the first BattleScreen fetch is deterministic.
   await page.route('**/api/arena/battles', async (route) => {
     if (route.request().method() === 'GET') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [{ id: 'battle-test', symbol: 'rNVDA', thesis: 'Test thesis', wrong_sentence: 'weekend tape gaps against me', user_side: 'LONG', ai_side: 'WAIT', opponent: 'NightWatch', stake: 10000, entry_price: 100, current_price: 97.2, user_pnl_pct: -2.8, ai_pnl_pct: 0, created_at: '2026-09-10T10:00:00Z', expires_at: '2026-09-11T10:00:00Z', settled_at: '2026-09-12T03:11:00Z', settled_price: 97.2, settlement_hash: '9f3adeadbeef0001', status: 'settled', source: 'bitget', shadow: { listed_move_pct: 0.4, shadow_move_pct: -3.2, total_move_pct: -2.8, kill_session: 'shadow', kill_at: '2026-09-12T03:11:00Z', candle_count: 24, granularity: '1H', is_estimate: true, last_listed_price: 100.4, session_label: 'Listed = NYSE hours.' }, flatten_before_dark: { flatten_price: 100.4, flatten_pnl_pct: 0.4, final_pnl_pct: -2.8, saved_pct: 3.2 } }] }) });

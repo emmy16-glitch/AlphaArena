@@ -26,7 +26,7 @@ test('track record shows win rate, Brier score and calibration curve', async ({ 
   await expect(page.getByText('Calibration error (Brier)')).toBeVisible();
   await expect(page.getByText('Calibration curve')).toBeVisible();
   await expect(page.getByRole('img', { name: /Calibration curve/i })).toBeVisible();
-  await expect(page.getByText('60–70%')).toBeVisible();
+  await expect(page.getByText('60–70%', { exact: true })).toBeVisible();
   await expect(page.getByText(/not proof of a repeatable edge/i)).toBeVisible();
   await expect(page.locator('body')).not.toContainText(/Traceback|localhost:8000|ECONN/);
 });
