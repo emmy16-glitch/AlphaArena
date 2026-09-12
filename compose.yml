@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile.vibe
     environment:
       VIBE_TRADING_ENABLE_SHELL_TOOLS: "0"
+      VIBE_TRADING_MCP_ALLOWED_HOSTS: "vibe,localhost,127.0.0.1"
       API_ALLOWED_HOSTS: "vibe,localhost,127.0.0.1"
     restart: unless-stopped
 
