@@ -37,6 +37,30 @@ test('Shadow Session: settled battle verifies freeze and morgue shows receipt', 
   await expect(page.getByText(/weekend tape gaps against me/i).first()).toBeVisible();
 });
 
+test('Battle screen falls back to the latest battle when the saved id is missing', async ({ page }) => {
+  await mockApi(page);
+  const settledBattle = { id: 'battle-test', symbol: 'rNVDA', thesis: 'Recovered battle', wrong_sentence: 'weekend tape gaps against me', user_side: 'LONG', ai_side: 'WAIT', opponent: 'NightWatch', stake: 10000, entry_price: 100, current_price: 97.2, user_pnl_pct: -2.8, ai_pnl_pct: 0, created_at: '2026-09-10T10:00:00Z', expires_at: '2026-09-11T10:00:00Z', settled_at: '2026-09-12T03:11:00Z', settled_price: 97.2, settlement_hash: '9f3adeadbeef0001', status: 'settled', source: 'bitget', shadow: null, flatten_before_dark: null };
+  // Ephemeral serverless storage lost the saved battle id.
+  await page.route('**/api/arena/battles/battle-test', async (route) => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: { code: 'NOT_FOUND', message: 'We couldn’t find that item.', action: 'Go back and choose an available item.' } }) });
+    }
+    return route.continue();
+  });
+  // …but the battles list still knows about it.
+  await page.route('**/api/arena/battles', async (route) => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [settledBattle] }) });
+    }
+    return route.continue();
+  });
+  await page.goto('/#/arena');
+  await page.getByRole('button', { name: /Recovered battle/ }).click();
+  await expect(page).toHaveURL(/#\/battle$/);
+  await expect(page.getByText(/rNVDA thesis battle/)).toBeVisible();
+  await expect(page.locator('body')).not.toContainText(/couldn’t find that item/i);
+});
+
 test('Shadow Session: morgue and battle do not overflow narrow viewports', async ({ page }) => {
   await mockApi(page);
   for (const view of ['morgue', 'battle', 'arena']) {

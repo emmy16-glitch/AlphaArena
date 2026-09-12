@@ -89,12 +89,20 @@ export function BattleScreen({ onNav, battleId }: { onNav: Nav; battleId?: strin
   const load = async () => {
     try {
       if (battleId) {
-        setBattle(await productApi.battle(battleId));
-      } else {
-        const rows = await productApi.battles();
-        setBattle(rows[0] || null);
+        try {
+          setBattle(await productApi.battle(battleId));
+          setError('');
+          return;
+        } catch {
+          // Stale battle id (e.g. ephemeral serverless storage recycled): fall
+          // back to the latest recorded battle instead of surfacing the 404.
+        }
       }
+      const rows = await productApi.battles();
+      setBattle(rows[0] || null);
+      setError('');
     } catch (cause) {
+      setBattle(null);
       setError(cause instanceof Error ? cause.message : 'Battle unavailable');
     }
   };
