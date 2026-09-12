@@ -27,9 +27,15 @@ Configuration lives in [`vercel.json`](../vercel.json). The frontend uses hash/h
 # From the repository root (Vercel CLI must be logged in: `vercel login`)
 vercel            # preview deployment
 vercel --prod     # promote to production (https://alphaarena.vercel.app)
+
+# Non-interactive alternative (CI): create a token in Vercel Dashboard →
+# Settings → Tokens, then
+vercel --prod --yes --token "$VERCEL_TOKEN"
 ```
 
 Or connect the GitHub repo (`emmy16-glitch/AlphaArena`) in the Vercel dashboard for automatic preview + production deploys per push.
+
+> **Note:** `vercel whoami` must report a logged-in account before deploying. If the domain instead serves an unrelated app (CRA-style `/static/js/main.*.js` bundle, `/api/health` returning HTML instead of JSON), the Vercel project is not deployed from this repo yet — run `vercel login && vercel --prod` from the repository root to claim it.
 
 ### Vercel environment variables
 
