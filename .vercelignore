@@ -1,0 +1,10 @@
+backend/.venv/
+backend/.venv-vibe/
+backend/__pycache__/
+backend/app/__pycache__/
+node_modules/
+test-results/
+playwright-report/
+e2e/
+dist/
+.git/

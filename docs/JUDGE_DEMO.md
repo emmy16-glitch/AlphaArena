@@ -1,5 +1,7 @@
 # Judge Demo — 3 Minutes
 
+> **Live demo:** https://alphaarena.vercel.app · Follow this script against the deployed build. Repository: https://github.com/emmy16-glitch/AlphaArena
+
 This script is intentionally truthful to the current product. Do not claim a paper battle settled unless it actually has.
 
 ## 0:00–0:25 — Problem
