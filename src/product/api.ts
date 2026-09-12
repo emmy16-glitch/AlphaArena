@@ -17,7 +17,7 @@ export type NightWatchReport = {
 
 export type TwinImpact = {
   symbol: string; asset_name?: string | null; current_price: number; impact_pct: number; lower_pct: number; upper_pct: number; confidence: number;
-  model?: string | null; beta_to_qqq?: number | null;
+  model?: string | null; calibrated?: boolean | null; beta_to_qqq?: number | null;
 };
 
 export type TwinExplanation = {

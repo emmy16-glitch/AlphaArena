@@ -52,10 +52,21 @@ def _historical_impact(
     symbol: str,
     shock: dict[str, Any],
     severity: int,
-    short_volatility_pct: float,
+    short_volatility_pct: float | None,
     calibration: dict[str, Any] | None,
-) -> tuple[float, float, float, int, str]:
-    """Use measured Vibe beta for Nasdaq shocks; transparent priors otherwise."""
+) -> tuple[float, float, float, int, str, bool]:
+    """Use measured Vibe beta for Nasdaq shocks; assumption-based prior otherwise.
+
+    Severity is applied exactly ONCE via the ``0.7 + severity/100*0.5`` scale
+    multiplier (never inside magnitude derivation — see ``parse_shock``), so a
+    "Nasdaq -5%" typed explicitly and the slider default agree at equal
+    severity. Non-Nasdaq categories and Nasdaq shocks with < 20 observations
+    use the hand-set UNCALIBRATED ``SCENARIO_BETAS`` table, labelled
+    "Assumption-based prior (uncalibrated)" with ``calibrated=False``.
+    Returns ``(impact, lower, upper, confidence, model_label, calibrated)``.
+    """
+    vol = float(short_volatility_pct) if isinstance(short_volatility_pct, (int, float)) else 0.0
+    vol = max(0.0, vol)
     if shock.get("category") == "nasdaq" and calibration:
         beta = calibration.get("beta_to_qqq")
         correlation = calibration.get("correlation_to_qqq")
@@ -65,11 +76,11 @@ def _historical_impact(
             scale = 0.7 + severity / 100 * 0.5
             impact = float(beta) * float(shock.get("magnitude") or 0) * sign * scale
             corr_abs = abs(float(correlation)) if isinstance(correlation, (int, float)) else 0.0
-            uncertainty = max(0.8, abs(impact) * (0.42 - min(0.22, corr_abs * 0.22)) + short_volatility_pct * 0.35)
-            confidence = int(max(45, min(88, 52 + min(20, observations / 12) + corr_abs * 18 - short_volatility_pct)))
-            return round(impact, 2), round(impact - uncertainty, 2), round(impact + uncertainty, 2), confidence, "Vibe-Trading measured beta"
-    impact, lower, upper, confidence = scenario_impact(symbol, shock, severity, short_volatility_pct)
-    return impact, lower, upper, confidence, "AlphaArena transparent prior"
+            uncertainty = max(0.8, abs(impact) * (0.42 - min(0.22, corr_abs * 0.22)) + vol * 0.35)
+            confidence = int(max(45, min(88, 52 + min(20, observations / 12) + corr_abs * 18 - vol)))
+            return round(impact, 2), round(impact - uncertainty, 2), round(impact + uncertainty, 2), confidence, "Vibe-Trading measured beta", True
+    impact, lower, upper, confidence = scenario_impact(symbol, shock, severity, vol)
+    return impact, lower, upper, confidence, "Assumption-based prior (uncalibrated)", False
 
 
 class MarketTwinService:
@@ -109,7 +120,7 @@ class MarketTwinService:
         model_sources: set[str] = set()
         for asset in assets:
             metrics = market_metrics(asset)
-            impact, lower, upper, confidence, model = _historical_impact(
+            impact, lower, upper, confidence, model, calibrated = _historical_impact(
                 asset["symbol"], shock, request.severity, metrics["realized_vol_pct"], calibrations.get(asset["symbol"]),
             )
             model_sources.add(model)
@@ -122,12 +133,13 @@ class MarketTwinService:
                 "upper_pct": upper,
                 "confidence": confidence,
                 "model": model,
+                "calibrated": calibrated,
                 "beta_to_qqq": (calibrations.get(asset["symbol"]) or {}).get("beta_to_qqq"),
             })
 
         default_explanation = (
             f"MarketTwin interpreted the prompt as a {shock['driver']} {shock['direction']} shock of {shock['magnitude']}{shock['unit']}. "
-            "Where Vibe-Trading provides enough aligned U.S.-equity history, Nasdaq sensitivity uses measured historical beta; otherwise AlphaArena uses a documented fallback sensitivity. "
+            "Where Vibe-Trading provides enough aligned U.S.-equity history (>= 20 observations), Nasdaq sensitivity uses measured historical beta; otherwise an assumption-based prior (uncalibrated) is used and labelled per asset. "
             "Uncertainty bands widen with current Bitget Reality volatility. These are stress estimates, not predicted returns."
         )
 
@@ -169,7 +181,7 @@ class MarketTwinService:
             analogues = [{
                 "label": "No verified historical analogue available",
                 "outcome": "MarketTwin withholds an analogue rather than fabricating one.",
-                "relevance": "The scenario remains a transparent sensitivity test; connect/retry Vibe-Trading to add historical comparison.",
+                "relevance": "The scenario remains an assumption-based sensitivity test; connect/retry Vibe-Trading to add historical comparison.",
             }]
 
         ordered_impacts = sorted(impacts, key=lambda item: abs(float(item["impact_pct"])), reverse=True)
@@ -197,9 +209,9 @@ class MarketTwinService:
         if model_sources == {"Vibe-Trading measured beta"}:
             model_source = "Vibe-Trading historical calibration + AlphaArena stress engine"
         elif "Vibe-Trading measured beta" in model_sources:
-            model_source = "Hybrid Vibe-Trading calibration + AlphaArena transparent priors"
+            model_source = "Hybrid Vibe-Trading calibration + assumption-based priors (uncalibrated)"
         else:
-            model_source = "AlphaArena transparent sensitivity priors"
+            model_source = "Assumption-based priors (uncalibrated)"
 
         return {
             "id": f"twin_{uuid4().hex[:12]}",

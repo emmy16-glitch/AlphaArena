@@ -24,14 +24,16 @@ class PulseService:
             metrics = market_metrics(asset)
             change = metrics["change_pct"]
             range_pct = metrics["range_pct"]
-            vol = metrics["realized_vol_pct"]
+            vol_raw = metrics["realized_vol_pct"]
+            vol = float(vol_raw) if isinstance(vol_raw, (int, float)) else 0.0
+            vol_txt = f"{vol:.2f}%" if isinstance(vol_raw, (int, float)) else "insufficient data"
             score = int(min(96, 24 + abs(change) * 8 + range_pct * 3 + vol * 2))
             direction = "higher" if change >= 0 else "lower"
             if abs(change) >= 3:
                 title = f"{asset['symbol']} is moving unusually {direction}"
                 summary = (
                     f"Bitget Reality is showing a {change:+.2f}% 24h move. "
-                    f"The 24h range is {range_pct:.2f}% and short-window realised volatility is {vol:.2f}%. "
+                    f"The 24h range is {range_pct:.2f}% and short-window realised volatility is {vol_txt}. "
                     "NightWatch flags it for thesis review before a virtual position is opened."
                 )
                 tags = ["Price anomaly", "Volatility"]

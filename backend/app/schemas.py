@@ -95,6 +95,7 @@ class TwinImpact(BaseModel):
     upper_pct: float
     confidence: int
     model: str | None = None
+    calibrated: bool | None = None
     beta_to_qqq: float | None = None
 
 

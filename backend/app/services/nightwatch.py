@@ -164,11 +164,19 @@ class NightWatchService:
         vibe, signal = await self._external_context(request.symbol)
 
         change = metrics["change_pct"]
+        momentum = metrics["momentum_pct"]
+        realized = metrics["realized_vol_pct"]
+        momentum_txt = "insufficient data"
+        if isinstance(momentum, (int, float)):
+            momentum_txt = f"{momentum:+.2f}%"
+        vol_txt = "insufficient data"
+        if isinstance(realized, (int, float)):
+            vol_txt = f"{realized:.2f}%"
         direction_aligned = (request.direction == "LONG" and change > 0) or (request.direction == "SHORT" and change < 0)
         support_fallback: list[dict[str, Any]] = [
             {
                 "title": "Live tape aligns with the thesis" if direction_aligned else "The live tape is measurable",
-                "detail": f"Bitget Reality shows {request.symbol} at {asset['price']:.2f}, {change:+.2f}% over 24h. Short-window momentum is {metrics['momentum_pct']:+.2f}%.",
+                "detail": f"Bitget Reality shows {request.symbol} at {asset['price']:.2f}, {change:+.2f}% over 24h. Short-window momentum is {momentum_txt}.",
                 "source": "Bitget Reality market data",
                 "strength": "medium" if direction_aligned else "low",
             },
@@ -182,9 +190,9 @@ class NightWatchService:
         objection_fallback: list[dict[str, Any]] = [
             {
                 "title": "Volatility can overwhelm the narrative",
-                "detail": f"The Bitget candle sample implies {metrics['realized_vol_pct']:.2f}% short-window realised volatility and a {metrics['range_pct']:.2f}% 24h high-low range.",
+                "detail": f"The Bitget candle sample implies {vol_txt} short-window realised volatility and a {metrics['range_pct']:.2f}% 24h high-low range.",
                 "source": "AlphaArena deterministic risk engine",
-                "strength": "high" if metrics["realized_vol_pct"] > 3 else "medium",
+                "strength": "high" if isinstance(realized, (int, float)) and realized > 3 else "medium",
             },
             {
                 "title": "Narrative and price can diverge",
@@ -201,11 +209,17 @@ class NightWatchService:
         macro_impact, _, _, _ = scenario_impact(request.symbol, nasdaq_shock, 70, metrics["realized_vol_pct"])
         liquidity_shock = {"driver": "Liquidity shock", "category": "liquidity", "magnitude": 6.0, "unit": "severity", "direction": "down"}
         liquidity_impact, _, _, _ = scenario_impact(request.symbol, liquidity_shock, 65, metrics["realized_vol_pct"])
-        gap_impact = -max(1.0, metrics["realized_vol_pct"] * 1.8)
+        vol_for_gap = float(realized) if isinstance(realized, (int, float)) else 0.0
+        gap_impact = -max(1.0, vol_for_gap * 1.8)
+        if not isinstance(realized, (int, float)):
+            # No measured tape: label the gap size as assumption-based.
+            stress_tape_note = "insufficient tape data; gap sized from a 1% floor assumption."
+        else:
+            stress_tape_note = "Sizes an adverse gap from the current short-window realised-volatility sample."
         stress = [
             {"name": "Nasdaq -5%", "impact_pct": macro_impact, "detail": "Cross-asset sensitivity stress; not a forecast."},
             {"name": "Liquidity deterioration", "impact_pct": liquidity_impact, "detail": "Tests thinner off-hours liquidity and wider execution uncertainty."},
-            {"name": "Adverse gap", "impact_pct": round(gap_impact, 2), "detail": "Sizes an adverse gap from the current short-window realised-volatility sample."},
+            {"name": "Adverse gap", "impact_pct": round(gap_impact, 2), "detail": stress_tape_note},
         ]
 
         historical_summary = "No verified historical series was retrieved."
@@ -242,11 +256,18 @@ class NightWatchService:
             except QwenError:
                 ai = None
 
-        fallback_verdict = request.direction if resilience >= 75 and request.direction in {"LONG", "SHORT"} else "WAIT"
+        # Deterministic fallback never invents a directional call: without a
+        # reasoned AI verdict it is always WAIT. A review tool that parrots the
+        # user's own direction ("LONG because you said LONG") is worthless.
+        fallback_verdict = "WAIT"
         verdict = str((ai or {}).get("verdict") or fallback_verdict).upper()
         if verdict not in {"LONG", "SHORT", "WAIT"}:
             verdict = "WAIT"
-        headline = str((ai or {}).get("headline") or ("Thesis survives the first stress test." if resilience >= 75 else "Wait for stronger confirmation." if resilience >= 52 else "The thesis is fragile under stress."))[:180]
+        if ai and ai.get("headline"):
+            headline = str(ai.get("headline"))[:180]
+        else:
+            # Deterministic fallback: no directional endorsement without AI reasoning.
+            headline = "Wait for stronger confirmation." if resilience >= 52 else "The thesis is fragile under stress."
         summary = str((ai or {}).get("summary") or f"NightWatch scores this {request.direction} thesis {resilience}/100 using live Bitget Reality data, deterministic risk tests, and {'retrieved Vibe-Trading history' if stats else 'no verified historical series yet'}. Unsupported claims are withheld.")[:1200]
 
         ai_analogues = []

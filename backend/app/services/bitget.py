@@ -137,8 +137,10 @@ class BitgetMarketClient:
                 spark = [_to_float(row[4]) for row in parsed if _to_float(row[4]) > 0]
             except (TypeError, ValueError):
                 spark = []
-        if not spark:
-            spark = [open_24 or last, last]
+        # Never fabricate candles: an empty spark means "no measured series".
+        # Callers (market_metrics) return None for momentum/vol/drawdown and
+        # render "insufficient data" instead of a number.
+        market_data_quality = "live" if len(spark) >= 5 else "degraded"
 
         result = {
             "symbol": display_symbol,
@@ -158,6 +160,7 @@ class BitgetMarketClient:
             "timestamp": int(_to_float(ticker.get("ts"), time.time() * 1000)),
             "source": "bitget",
             "isReality": True,
+            "marketDataQuality": market_data_quality,
         }
         self._cache[display_symbol] = CacheEntry(value=result, expires_at=now + settings.market_cache_seconds)
         return result
