@@ -52,7 +52,8 @@ Set these in **Vercel Dashboard → Project → Settings → Environment Variabl
 | `MONGODB_DB` | No | Default `alphaarena` |
 | `REQUIRE_PERSISTENT_STORAGE` | **Yes in production** | Set `true` so startup fails instead of silently falling back to ephemeral memory |
 | `FRONTEND_ORIGINS` | Recommended | Comma-separated allowed origins, e.g. `https://alphaarena-sand.vercel.app` |
-| `VIBE_MCP_URL` | No | Usually unavailable on Vercel serverless; product degrades to labelled fallback |
+| `VIBE_MCP_URL` | Recommended | Public URL of the protected Vibe gateway, ending in `/mcp` |
+| `VIBE_MCP_TOKEN` | Required when Vibe is deployed | Same bearer secret as `VIBE_PROXY_TOKEN` on the Vibe service |
 | `BITGET_SIGNAL_MCP_URL` | No | Default `https://datahub.noxiaohao.com/mcp` |
 
 > The serverless API has a `maxDuration` of 10s (`vercel.json → functions`). Long upstream research calls degrade to fast, labelled fallbacks instead of holding the request open — this is intentional (see [ARCHITECTURE.md](ARCHITECTURE.md)).
@@ -121,10 +122,44 @@ Local development can use the in-memory fallback. A deployed Arena should not: s
 
 When Mongo is active, paper-capital creation also uses a short per-player Mongo lease so separate workers cannot simultaneously reserve the same free virtual capital.
 
-## 5. Production checklist (before judging)
+## 5. Persistent worker + Vibe sidecar (Railway)
+
+The web/API stays on Vercel. Two long-running services are prepared for Railway:
+
+| Service | Config-as-code | Container | Purpose |
+| --- | --- | --- | --- |
+| `alphaarena-worker` | `/railway.worker.json` | `deploy/Dockerfile.worker` | Continuous baseline/Jev Decision Tape + outcome evaluation |
+| `alphaarena-vibe` | `/railway.vibe.json` | `deploy/Dockerfile.vibe` | Protected research-only Vibe MCP sidecar |
+
+For the worker, connect the same GitHub repo and set:
+
+```text
+MONGODB_URI=<same durable Mongo URI used by Vercel>
+MONGODB_DB=alphaarena
+REQUIRE_PERSISTENT_STORAGE=true
+DECISION_TAPE_INTERVAL_SECONDS=5
+DECISION_TAPE_SYMBOLS=rNVDA
+JEV_ADAPTER_URL=<optional until Jev access is issued>
+JEV_ADAPTER_TOKEN=<optional until Jev access is issued>
+```
+
+For Vibe, create a long random `VIBE_PROXY_TOKEN`, configure the service with `/railway.vibe.json`, and generate a public HTTPS domain. The Railway-specific container binds the Vibe server only to localhost and exposes a small bearer-protected gateway. Shell tools remain disabled.
+
+Then configure Vercel:
+
+```text
+VIBE_MCP_URL=https://<your-vibe-domain>/mcp
+VIBE_MCP_TOKEN=<same value as VIBE_PROXY_TOKEN>
+```
+
+After redeploying Vercel, `/api/integrations/diagnostics` should show Vibe connected and `/api/release/readiness` should show the exact remaining gaps.
+
+## 6. Production checklist (before judging)
 
 - [ ] `https://alphaarena-sand.vercel.app/` loads with no console errors.
 - [ ] `/api/health` reports durable storage in production; `/api/budget/status` remains paper-only with background LLM = 0.
+- [ ] `/api/integrations/diagnostics` reports `decisionWorker.connected: true` and Vibe connected.
+- [ ] `/api/release/readiness` has `core_ready: true`; for the full Jev demo, `full_jev_ready: true`.
 - [ ] Pulse shows live vs. preview labelling truthfully.
 - [ ] NightWatch → MarketTwin → Arena → Review flow rehearsed per [JUDGE_DEMO.md](JUDGE_DEMO.md).
 - [ ] Shadow Session: one settled battle shows Listed/Shadow bars, the verbatim commitment sentence, and a **Verify freeze** that returns `hash matches`.
