@@ -15,7 +15,7 @@ It turns a market idea into a falsifiable thesis, challenges it with opposing ev
 
 | Resource | Link |
 | --- | --- |
-| 🌐 **Live demo (Vercel)** | **https://alphaarena.vercel.app** |
+| 🌐 **Live demo (Vercel)** | **https://alphaarena-sand.vercel.app** |
 | 📦 Repository | https://github.com/emmy16-glitch/AlphaArena |
 | 📖 Full docs hub | [docs/README.md](docs/README.md) |
 | 🎬 3-minute judge script | [docs/JUDGE_DEMO.md](docs/JUDGE_DEMO.md) |
@@ -226,7 +226,7 @@ The default hackathon configuration is intentionally conservative:
 
 | Guardrail | Default |
 | --- | ---: |
-| Live demo | https://alphaarena.vercel.app |
+| Live demo | https://alphaarena-sand.vercel.app |
 | Arena starting balance | `$100,000` virtual |
 | Real-money trading | Disabled / no execution route |
 | Scheduled background LLM calls | `0` |
@@ -372,7 +372,7 @@ Backend source map: see [backend/README.md](backend/README.md).
 
 ## Deployment
 
-**Live: https://alphaarena.vercel.app**
+**Live: https://alphaarena-sand.vercel.app**
 
 - Static frontend (`dist/`) + serverless FastAPI (`api/index.py`) via `vercel.json` rewrites (`/api/* → /api/index.py`, everything else → SPA).
 - Full-stack local alternative: `docker compose up --build` (FastAPI + Vibe sidecar).
