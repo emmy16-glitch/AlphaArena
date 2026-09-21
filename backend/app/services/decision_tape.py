@@ -281,21 +281,25 @@ class DecisionTapeService:
                         "granularity": observed.get("granularity"),
                         "selection": observed.get("selection"),
                     })
-                    # Metric write is idempotent per decision+horizon. It runs
-                    # before the decision/job writes so a retry cannot double
-                    # count after a process interruption.
-                    await store.record_decision_metric(
-                        player_id=str(decision.get("player_id") or "guest_default"),
-                        lane=str(decision.get("lane") or "other"),
-                        horizon=label,
-                        decision_id=str(decision["id"]),
-                        correct=bool(result["correct"]),
-                        signed_return_pct=float(result["signed_return_pct"]),
-                        brier=float(result["brier"]),
-                    )
                     outcomes[label] = result
                     changed = True
+                else:
+                    # Also rebuild cumulative metrics from an already-stored
+                    # outcome. This makes the aggregation layer self-healing if
+                    # it is introduced after observations already exist.
+                    result = outcomes[label]
 
+                # Metric write is idempotent per decision+horizon. It runs
+                # before the decision/job writes so a retry cannot double count.
+                await store.record_decision_metric(
+                    player_id=str(decision.get("player_id") or "guest_default"),
+                    lane=str(decision.get("lane") or "other"),
+                    horizon=label,
+                    decision_id=str(decision["id"]),
+                    correct=bool(result["correct"]),
+                    signed_return_pct=float(result["signed_return_pct"]),
+                    brier=float(result["brier"]),
+                )
                 index += 1
 
             if changed:
