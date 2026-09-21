@@ -135,3 +135,33 @@ Bitget snapshot
 The worker never sends Bitget order requests. If the Jev adapter is unavailable, the market snapshot and deterministic baseline can still be recorded; the Jev lane is simply skipped for that iteration.
 
 For a long-running worker, configure MongoDB. In-memory storage is process-local and is unsuitable for a decision history that must survive restarts.
+
+
+## Production worker deployment
+
+The repository includes a dedicated worker image and Railway config:
+
+```text
+deploy/Dockerfile.worker
+railway.worker.json
+```
+
+The worker deliberately refuses to start without durable MongoDB. Use the same `MONGODB_URI` and `MONGODB_DB` as the Vercel API, then set:
+
+```text
+REQUIRE_PERSISTENT_STORAGE=true
+DECISION_TAPE_INTERVAL_SECONDS=5
+DECISION_TAPE_SYMBOLS=rNVDA
+```
+
+When Jev access is available, add `JEV_ADAPTER_URL` and `JEV_ADAPTER_TOKEN`. Without them the deterministic baseline still records continuously and Jev is honestly reported as disabled.
+
+The worker writes a heartbeat into shared storage. Production can verify it through:
+
+```text
+GET /api/health
+GET /api/integrations/diagnostics
+GET /api/release/readiness
+```
+
+A healthy worker reports a recent heartbeat and `decisionWorker.connected: true`. If the heartbeat becomes stale, AlphaArena reports that explicitly instead of pretending continuous evaluation is running.
