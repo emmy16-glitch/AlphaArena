@@ -75,8 +75,18 @@ def test_pnl_long_short_wait() -> None:
 
 
 @pytest.mark.asyncio
-async def test_settled_battle_is_immutable() -> None:
+async def test_settled_battle_is_immutable(monkeypatch: pytest.MonkeyPatch) -> None:
     await store.clear_memory()
+
+    async def price_near(symbol: str, when_ms: int) -> dict[str, object]:
+        assert symbol == "rNVDA"
+        return {"price": 110.0, "timestamp": when_ms, "source": "bitget-candle", "granularity": "1m"}
+
+    async def candles(*args: object, **kwargs: object) -> list[dict[str, object]]:
+        return []
+
+    monkeypatch.setattr(arena_module.bitget_market, "get_price_near", price_near)
+    monkeypatch.setattr(arena_module.bitget_market, "get_candles", candles)
     battle = {
         "id": "battle-test",
         "symbol": "rNVDA",
@@ -89,17 +99,18 @@ async def test_settled_battle_is_immutable() -> None:
         "current_price": 100.0,
         "user_pnl_pct": 0.0,
         "ai_pnl_pct": 0.0,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": "1999-12-31T00:00:00+00:00",
         "expires_at": "2000-01-01T00:00:00+00:00",
         "settled_at": None,
         "settled_price": None,
         "status": "live",
         "source": "bitget",
     }
-    first = await arena_service._refresh(dict(battle), {"rNVDA": 110.0})
+    first = await arena_service._refresh(dict(battle), {"rNVDA": 150.0})
     assert first["status"] == "settled"
     assert first["settled_price"] == 110.0
     assert first["user_pnl_pct"] == 10.0
+    assert first["settlement_granularity"] == "1m"
 
     second = await arena_service._refresh(dict(first), {"rNVDA": 50.0})
     assert second["settled_price"] == 110.0
@@ -352,3 +363,44 @@ async def test_portfolio_reports_risk_stats(monkeypatch: pytest.MonkeyPatch) -> 
     portfolio = await arena_service.portfolio()
     for key in ("win_rate", "profit_factor", "max_drawdown_pct", "sharpe_like"):
         assert key in portfolio
+
+@pytest.mark.asyncio
+async def test_expired_battle_uses_expiry_candle_not_late_refresh_price(monkeypatch: pytest.MonkeyPatch) -> None:
+    await store.clear_memory()
+
+    async def price_near(symbol: str, when_ms: int) -> dict[str, object]:
+        return {"price": 101.0, "timestamp": when_ms, "source": "bitget-candle", "granularity": "1m"}
+
+    async def candles(*args: object, **kwargs: object) -> list[dict[str, object]]:
+        return []
+
+    monkeypatch.setattr(arena_module.bitget_market, "get_price_near", price_near)
+    monkeypatch.setattr(arena_module.bitget_market, "get_candles", candles)
+    battle = {
+        "id": "expiry-test", "symbol": "rNVDA", "thesis": "24 hour thesis",
+        "user_side": "LONG", "ai_side": "WAIT", "opponent": "NightWatch",
+        "stake": 10000.0, "entry_price": 100.0, "current_price": 100.0,
+        "user_pnl_pct": 0.0, "ai_pnl_pct": 0.0,
+        "created_at": "2000-01-01T00:00:00+00:00", "expires_at": "2000-01-02T00:00:00+00:00",
+        "settled_at": None, "settled_price": None, "status": "live", "source": "bitget",
+    }
+    result = await arena_service._refresh(battle, {"rNVDA": 180.0})
+    assert result["settled_price"] == 101.0
+    assert result["current_price"] == 101.0
+    assert result["user_pnl_pct"] == 1.0
+
+@pytest.mark.asyncio
+async def test_realized_loss_reduces_future_free_capital(monkeypatch: pytest.MonkeyPatch) -> None:
+    await store.clear_memory()
+    settled = {
+        "id": "loss", "player_id": "guest_default", "symbol": "rNVDA", "thesis": "loss",
+        "user_side": "LONG", "ai_side": "WAIT", "opponent": "NightWatch", "stake": 20000.0,
+        "entry_price": 100.0, "current_price": 50.0, "settled_price": 50.0,
+        "user_pnl_pct": -50.0, "ai_pnl_pct": 0.0,
+        "created_at": "2026-09-10T00:00:00+00:00", "expires_at": "2026-09-11T00:00:00+00:00",
+        "settled_at": "2026-09-11T00:00:00+00:00", "status": "settled", "source": "bitget",
+    }
+    await store.save("battles", "loss", settled)
+    portfolio = await arena_service.portfolio()
+    assert portfolio["net_value"] == 90000.0
+    assert portfolio["free_capital"] == 90000.0
