@@ -154,6 +154,108 @@ class AlphaStore:
                     raise RuntimeError("Persistent storage read failed") from exc
         return None
 
+    async def record_decision_metric(
+        self,
+        *,
+        player_id: str,
+        lane: str,
+        horizon: str,
+        decision_id: str,
+        correct: bool,
+        signed_return_pct: float,
+        brier: float,
+    ) -> bool:
+        """Idempotently accumulate one matured Decision Tape observation."""
+        event_id = f"{decision_id}:{horizon}"
+        metric_id = f"{player_id}:{lane}:{horizon}"
+        now = datetime.now(timezone.utc).isoformat()
+
+        async def record_memory() -> bool:
+            async with self._lock:
+                if event_id in self._memory["decision_metric_events"]:
+                    return False
+                self._memory["decision_metric_events"][event_id] = {
+                    "id": event_id,
+                    "decision_id": decision_id,
+                    "horizon": horizon,
+                    "created_at": now,
+                }
+                row = self._memory["decision_metrics"].setdefault(
+                    metric_id,
+                    {
+                        "id": metric_id,
+                        "player_id": player_id,
+                        "lane": lane,
+                        "horizon": horizon,
+                        "n": 0,
+                        "hits": 0,
+                        "signed_return_sum": 0.0,
+                        "brier_sum": 0.0,
+                        "updated_at": now,
+                    },
+                )
+                row["n"] = int(row.get("n") or 0) + 1
+                row["hits"] = int(row.get("hits") or 0) + (1 if correct else 0)
+                row["signed_return_sum"] = float(row.get("signed_return_sum") or 0) + float(signed_return_pct)
+                row["brier_sum"] = float(row.get("brier_sum") or 0) + float(brier)
+                row["updated_at"] = now
+                return True
+
+        if self._mongo is None:
+            return await record_memory()
+
+        events = self._mongo["decision_metric_events"]
+        metrics = self._mongo["decision_metrics"]
+        inserted_remote = False
+        try:
+            await asyncio.to_thread(
+                events.insert_one,
+                {
+                    "_id": event_id,
+                    "id": event_id,
+                    "decision_id": decision_id,
+                    "horizon": horizon,
+                    "created_at": now,
+                },
+            )
+            inserted_remote = True
+            await asyncio.to_thread(
+                metrics.update_one,
+                {"_id": metric_id},
+                {
+                    "$setOnInsert": {
+                        "id": metric_id,
+                        "player_id": player_id,
+                        "lane": lane,
+                        "horizon": horizon,
+                    },
+                    "$inc": {
+                        "n": 1,
+                        "hits": 1 if correct else 0,
+                        "signed_return_sum": float(signed_return_pct),
+                        "brier_sum": float(brier),
+                    },
+                    "$set": {"updated_at": now},
+                },
+                upsert=True,
+            )
+        except DuplicateKeyError:
+            return False
+        except Exception as exc:
+            if inserted_remote:
+                try:
+                    await asyncio.to_thread(events.delete_one, {"_id": event_id})
+                except Exception:
+                    pass
+            if settings.require_persistent_storage:
+                raise RuntimeError("Persistent decision-metric update failed") from exc
+            return await record_memory()
+
+        # Mirror the durable counter into this process's memory so reads do not
+        # have to wait for another Mongo round-trip to reflect the observation.
+        await record_memory()
+        return True
+
     async def clear_memory(self) -> None:
         """Test helper; does not delete persistent MongoDB data."""
         async with self._lock:
