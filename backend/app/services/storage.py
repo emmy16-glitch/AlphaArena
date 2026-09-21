@@ -107,7 +107,9 @@ class AlphaStore:
         document["_id"] = key
         try:
             await asyncio.to_thread(self._mongo[collection].replace_one, {"_id": key}, document, upsert=True)
-        except Exception:
+        except Exception as exc:
+            if settings.require_persistent_storage:
+                raise RuntimeError("Persistent storage write failed") from exc
             return
 
     async def list(self, collection: str, limit: int = 200) -> list[dict[str, Any]]:
@@ -118,7 +120,9 @@ class AlphaStore:
                 for row in mongo_rows:
                     row.pop("_id", None)
                     rows.append(row)
-            except Exception:
+            except Exception as exc:
+                if settings.require_persistent_storage:
+                    raise RuntimeError("Persistent storage list failed") from exc
                 rows = []
         async with self._lock:
             memory_rows = [deepcopy(value) for value in self._memory[collection].values()]
@@ -145,8 +149,9 @@ class AlphaStore:
                 if row:
                     row.pop("_id", None)
                     return row
-            except Exception:
-                pass
+            except Exception as exc:
+                if settings.require_persistent_storage:
+                    raise RuntimeError("Persistent storage read failed") from exc
         return None
 
     async def clear_memory(self) -> None:
