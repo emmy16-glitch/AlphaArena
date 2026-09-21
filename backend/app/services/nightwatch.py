@@ -157,8 +157,11 @@ class NightWatchService:
         vibe, signal = await asyncio.gather(vibe_task(), signal_task())
         return vibe, signal
 
-    async def analyze(self, request: Any) -> dict[str, Any]:
-        asset = await bitget_market.get_asset(request.symbol)
+    async def analyze(self, request: Any, *, market_asset: dict[str, Any] | None = None) -> dict[str, Any]:
+        # Decision Tape can pass a frozen Bitget-shaped asset so Human, Jev,
+        # NightWatch and the deterministic baseline are compared against the
+        # exact same market state rather than slightly different refreshes.
+        asset = dict(market_asset) if market_asset is not None else await bitget_market.get_asset(request.symbol)
         metrics = market_metrics(asset)
         resilience, confidence, risk_level = resilience_score(asset, request.direction, request.risk_pct)
         vibe, signal = await self._external_context(request.symbol)
