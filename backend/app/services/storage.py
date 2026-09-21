@@ -251,9 +251,10 @@ class AlphaStore:
                 raise RuntimeError("Persistent decision-metric update failed") from exc
             return await record_memory()
 
-        # Mirror the durable counter into this process's memory so reads do not
-        # have to wait for another Mongo round-trip to reflect the observation.
-        await record_memory()
+        # Mongo is authoritative for cumulative counters. Do not mirror a
+        # partial process-local count over the durable aggregate because the
+        # generic repository merge intentionally prefers local values for
+        # ordinary write-through documents.
         return True
 
     async def clear_memory(self) -> None:
