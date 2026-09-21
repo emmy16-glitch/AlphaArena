@@ -10,10 +10,11 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
-from app.schemas import BattleCreateRequest, MarketTwinRequest, NightWatchRequest, PortfolioStressRequest, TraderProfileRequest
+from app.schemas import BattleCreateRequest, DecisionSnapshotRequest, DecisionSubmitRequest, MarketTwinRequest, NightWatchRequest, PortfolioStressRequest, TraderProfileRequest
 from app.services.arena import ArenaError, arena_service
 from app.services.bitget import BitgetError, bitget_market
 from app.services.budget import qwen_budget
+from app.services.decision_tape import decision_tape
 from app.services.market_twin import market_twin
 from app.services.nightwatch import nightwatch
 from app.services.pulse import pulse_service
@@ -300,6 +301,61 @@ async def portfolio_stress(request: PortfolioStressRequest) -> dict[str, object]
         message = str(exc)
         status = 404 if message.startswith("Unsupported AlphaArena symbol") else 502
         raise HTTPException(status_code=status, detail=message) from exc
+
+
+@app.post("/api/decision-tape/snapshots")
+async def capture_decision_snapshot(
+    request: DecisionSnapshotRequest,
+    x_player_id: str | None = Header(default=None),
+) -> dict[str, object]:
+    try:
+        return {"data": await decision_tape.capture_snapshot(request.symbol, _player_id(x_player_id))}
+    except BitgetError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/api/decision-tape/decisions")
+async def submit_decision(
+    request: DecisionSubmitRequest,
+    x_player_id: str | None = Header(default=None),
+) -> dict[str, object]:
+    try:
+        return {
+            "data": await decision_tape.submit(
+                request.snapshot_id,
+                request.lane,
+                request.direction,
+                request.confidence,
+                player_id=_player_id(x_player_id),
+                model=request.model,
+                latency_ms=request.latency_ms,
+                note=request.note,
+                metadata=request.metadata,
+            )
+        }
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Decision snapshot not found") from exc
+
+
+@app.get("/api/decision-tape/decisions")
+async def list_decisions(x_player_id: str | None = Header(default=None)) -> dict[str, object]:
+    return {"data": await decision_tape.list(_player_id(x_player_id))}
+
+
+@app.post("/api/decision-tape/evaluate")
+async def evaluate_decisions(x_player_id: str | None = Header(default=None)) -> dict[str, object]:
+    try:
+        return {"data": await decision_tape.evaluate_due(_player_id(x_player_id))}
+    except BitgetError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/decision-tape/summary")
+async def decision_summary(x_player_id: str | None = Header(default=None)) -> dict[str, object]:
+    try:
+        return {"data": await decision_tape.summary(_player_id(x_player_id))}
+    except BitgetError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.post("/api/arena/battles")
