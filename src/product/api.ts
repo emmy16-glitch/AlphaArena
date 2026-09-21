@@ -73,7 +73,7 @@ export type PulseEvent = {
 
 export type ShadowAttribution = {
   listed_move_pct: number; shadow_move_pct: number; total_move_pct: number;
-  kill_session: string | null; kill_at: string | null;
+  kill_session: string | null; kill_at: string | null; last_session?: string | null; last_at?: string | null;
   kill_hit?: boolean | null; kill_price_touched?: number | null;
   candle_count: number;
   granularity: string; is_estimate: boolean; last_listed_price: number | null;
