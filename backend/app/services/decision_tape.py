@@ -15,6 +15,7 @@ HORIZONS_MINUTES: dict[str, int] = {
     "24h": 24 * 60,
 }
 WAIT_DEADBAND_PCT = 0.10
+GLOBAL_TAPE_PLAYER_ID = "global_market"
 
 
 def _parse_time(value: Any) -> datetime:
@@ -123,6 +124,7 @@ class DecisionTapeService:
             "id": decision_id,
             "snapshot_id": snapshot["id"],
             "player_id": snapshot.get("player_id") or "guest_default",
+            "scope": "global" if str(snapshot.get("player_id")) == GLOBAL_TAPE_PLAYER_ID else "personal",
             "symbol": snapshot["symbol"],
             "lane": lane,
             "direction": direction,
@@ -193,18 +195,27 @@ class DecisionTapeService:
             metadata=metadata,
         )
 
-    async def list(self, player_id: str = "guest_default", limit: int = 200) -> list[dict[str, Any]]:
-        rows = [
-            row
-            for row in await store.list("decision_tape", limit=max(1, min(1000, limit)))
-            if str(row.get("player_id") or "guest_default") == player_id
-        ]
+    async def list(
+        self,
+        player_id: str = "guest_default",
+        limit: int = 200,
+        *,
+        include_global: bool = True,
+    ) -> list[dict[str, Any]]:
+        rows = []
+        for row in await store.list("decision_tape", limit=max(1, min(1000, limit))):
+            owner = str(row.get("player_id") or "guest_default")
+            if owner == player_id or (include_global and owner == GLOBAL_TAPE_PLAYER_ID):
+                rows.append(row)
         rows.sort(key=lambda row: str(row.get("decided_at") or ""), reverse=True)
         return rows
 
     async def evaluate_due(self, player_id: str = "guest_default") -> list[dict[str, Any]]:
         now = datetime.now(timezone.utc)
-        decisions = await self.list(player_id, limit=1000)
+        # A browser evaluates only its own pending observations. The dedicated
+        # worker evaluates the global market tape so a page view cannot trigger
+        # a large backlog of public Jev candle lookups.
+        decisions = await self.list(player_id, limit=1000, include_global=False)
         updated: list[dict[str, Any]] = []
         for decision in decisions:
             captured = _parse_time(decision["snapshot_captured_at"])
@@ -251,7 +262,7 @@ class DecisionTapeService:
 
     async def summary(self, player_id: str = "guest_default") -> dict[str, Any]:
         await self.evaluate_due(player_id)
-        decisions = await self.list(player_id, limit=1000)
+        decisions = await self.list(player_id, limit=1000, include_global=True)
         by_lane: dict[str, dict[str, Any]] = {}
         for decision in decisions:
             lane = str(decision.get("lane") or "other")
