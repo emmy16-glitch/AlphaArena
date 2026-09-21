@@ -295,7 +295,7 @@ Then open `http://127.0.0.1:8000/docs` for the interactive API.
 | Scope | File | Key variables |
 | --- | --- | --- |
 | Frontend | `.env.example` | `VITE_API_BASE_URL` |
-| Backend | `backend/.env.example` | `BITGET_BASE_URL`, `FRONTEND_ORIGINS`, `WATCHER_*`, `AI_PROVIDER`, `QWEN_*`, `BITGET_SIGNAL_MCP_URL`, `SIGNAL_CACHE_SECONDS`, `VIBE_MCP_URL`, `VIBE_CACHE_SECONDS`, `MONGODB_URI`, `MONGODB_DB`, `ARENA_STARTING_CAPITAL` |
+| Backend | `backend/.env.example` | `BITGET_BASE_URL`, `FRONTEND_ORIGINS`, `WATCHER_*`, `AI_PROVIDER`, `QWEN_*`, `BITGET_SIGNAL_MCP_URL`, `VIBE_MCP_URL`, `VIBE_MCP_TOKEN`, `MONGODB_*`, `REQUIRE_PERSISTENT_STORAGE`, `JEV_*`, `DECISION_TAPE_*`, `ARENA_STARTING_CAPITAL` |
 
 See [backend/.env.example](backend/.env.example) and [backend/README.md](backend/README.md) for defaults and semantics.
 
@@ -327,6 +327,7 @@ Useful read-only endpoints (also live on the Vercel deployment under `/api/...`)
 - `GET /api/health`
 - `GET /api/integrations/status`
 - `GET /api/integrations/diagnostics`
+- `GET /api/release/readiness` — machine-readable production gate for storage, research, worker and Jev readiness
 - `GET /api/budget/status`
 - `GET /api/market/instruments/reality`
 - `GET /api/market/assets`
