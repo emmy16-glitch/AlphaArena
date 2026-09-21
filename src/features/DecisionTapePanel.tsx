@@ -5,7 +5,7 @@ import { ActionButton, FieldLabel, MicroLabel, SegButton, VerdictPill } from '..
 
 const directionLabel = (value: Direction) => value === 'LONG' ? 'Up' : value === 'SHORT' ? 'Down' : 'Wait';
 
-export default function DecisionTapePanel({ symbol }: { symbol: string }) {
+export default function DecisionTapePanel({ symbol, thesis, thesisDirection, riskPct = 2 }: { symbol: string; thesis: string; thesisDirection: Direction; riskPct?: number }) {
   const [capture, setCapture] = useState<DecisionCapture | null>(null);
   const [rows, setRows] = useState<DecisionRecord[]>([]);
   const [summary, setSummary] = useState<DecisionTapeSummary | null>(null);
@@ -58,6 +58,26 @@ export default function DecisionTapePanel({ symbol }: { symbol: string }) {
     }
   };
 
+  const runNightWatch = async () => {
+    if (!capture || busy || thesis.trim().length < 8) return;
+    setBusy(true);
+    setError('');
+    try {
+      await productApi.runNightWatchDecision({
+        snapshot_id: capture.snapshot.id,
+        direction: thesisDirection,
+        thesis: thesis.trim(),
+        risk_pct: riskPct,
+        holding_period: '24H',
+      });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'NightWatch could not evaluate this snapshot.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const latest = rows.slice(0, 8);
   const laneStats = summary?.lanes || {};
 
@@ -82,7 +102,7 @@ export default function DecisionTapePanel({ symbol }: { symbol: string }) {
         <FieldLabel>Your decision on this exact snapshot</FieldLabel>
         <div className="mt-3 flex flex-wrap gap-2">{(['LONG', 'SHORT', 'WAIT'] as Direction[]).map((item) => <SegButton key={item} active={direction === item} onClick={() => setDirection(item)}>{directionLabel(item)}</SegButton>)}</div>
         <div className="mt-4"><FieldLabel>Confidence · {confidence}%</FieldLabel><input aria-label="Decision Tape confidence" type="range" min="10" max="95" step="5" value={confidence} onChange={(event) => setConfidence(Number(event.target.value))} className="w-full accent-[#141412]" /></div>
-        <ActionButton onClick={() => void submitHuman()} className="mt-4">Lock human decision</ActionButton>
+        <ActionButton onClick={() => void submitHuman()} className="mt-4">Lock human decision</ActionButton><ActionButton variant="secondary" onClick={() => void runNightWatch()} className="mt-2">Run NightWatch on same snapshot</ActionButton>
       </div>
     </div>}
 
