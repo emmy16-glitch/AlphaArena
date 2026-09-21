@@ -235,6 +235,8 @@ class BattleView(BaseModel):
     settled_at: str | None = None
     settled_price: float | None = None
     settlement_hash: str | None = None
+    settlement_source: str | None = None
+    settlement_granularity: str | None = None
     stated_confidence: float | None = None
     status: Literal["live", "settled"]
     source: str = "bitget"
