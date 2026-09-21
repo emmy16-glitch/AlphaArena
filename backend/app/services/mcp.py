@@ -21,9 +21,10 @@ class MCPHttpClient:
     a progress notification from an SSE stream.
     """
 
-    def __init__(self, url: str, name: str) -> None:
+    def __init__(self, url: str, name: str, default_headers: dict[str, str] | None = None) -> None:
         self.url = url
         self.name = name
+        self.default_headers = dict(default_headers or {})
         self.session_id: str | None = None
         self.protocol_version: str | None = None
         self.initialized = False
@@ -88,6 +89,7 @@ class MCPHttpClient:
 
     async def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
         headers = {
+            **self.default_headers,
             "Accept": "application/json, text/event-stream",
             "Content-Type": "application/json",
         }

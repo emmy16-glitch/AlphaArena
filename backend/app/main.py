@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -64,6 +65,41 @@ def _player_id(value: str | None) -> str:
     if not candidate or len(candidate) > 100 or not candidate.startswith("guest_"):
         return "guest_default"
     return candidate
+
+
+async def _decision_worker_status() -> dict[str, object]:
+    row = await store.get("service_status", "decision_worker")
+    if not row:
+        return {
+            "configured": bool(settings.mongodb_uri),
+            "connected": False,
+            "status": "not-seen",
+            "jev_configured": bool(settings.jev_adapter_url),
+        }
+    heartbeat_raw = row.get("heartbeat_at")
+    stale = True
+    age_seconds: float | None = None
+    if heartbeat_raw:
+        try:
+            heartbeat = datetime.fromisoformat(str(heartbeat_raw).replace("Z", "+00:00"))
+            if heartbeat.tzinfo is None:
+                heartbeat = heartbeat.replace(tzinfo=timezone.utc)
+            age_seconds = max(0.0, (datetime.now(timezone.utc) - heartbeat).total_seconds())
+            interval = max(1.0, float(row.get("interval_seconds") or settings.decision_tape_interval_seconds))
+            stale = age_seconds > max(30.0, interval * 3.0)
+        except (TypeError, ValueError):
+            pass
+    return {
+        "configured": bool(settings.mongodb_uri),
+        "connected": not stale and row.get("status") in {"running", "degraded"},
+        "status": "stale" if stale else str(row.get("status") or "unknown"),
+        "heartbeat_at": heartbeat_raw,
+        "heartbeat_age_seconds": None if age_seconds is None else round(age_seconds, 1),
+        "interval_seconds": row.get("interval_seconds"),
+        "symbols": row.get("symbols") or [],
+        "jev_enabled": bool(row.get("jev_enabled")),
+        "last_error": row.get("last_error"),
+    }
 
 
 def _problem(status: int, code: str, message: str, action: str, retryable: bool = False) -> JSONResponse:
@@ -142,6 +178,7 @@ async def health() -> dict[str, object]:
         "storage_durable": store.durable,
         "watcher": pulse_watcher.status,
         "signal_warmer": signal_warmer.status,
+        "decision_worker": await _decision_worker_status(),
     }
 
 
@@ -172,6 +209,8 @@ async def integration_status() -> dict[str, object]:
             "vibeTrading": {"configured": settings.vibe_enabled, "mode": "research-only Streamable HTTP MCP sidecar"},
             "mongodb": {"configured": bool(settings.mongodb_uri), "fallback": "in-memory"},
             "watcher": pulse_watcher.status,
+            "decisionWorker": await _decision_worker_status(),
+            "jev": {"configured": bool(settings.jev_adapter_url), "mode": "optional typed-decision adapter"},
             "realMoneyTrading": {"configured": False, "mode": "disabled by product design"},
         }
     }
@@ -198,6 +237,54 @@ async def integration_diagnostics() -> dict[str, object]:
             "storage": {"mode": store.mode, "durable": store.durable, "required": settings.require_persistent_storage},
             "watcher": pulse_watcher.status,
             "signal_warmer": signal_warmer.status,
+            "decisionWorker": await _decision_worker_status(),
+        }
+    }
+
+
+@app.get("/api/release/readiness")
+async def release_readiness() -> dict[str, object]:
+    async def bitget_check() -> bool:
+        try:
+            return bool(await bitget_market.get_reality_instruments())
+        except Exception:
+            return False
+
+    bitget_connected, vibe_status, signal_status, worker_status = await asyncio.gather(
+        bitget_check(),
+        vibe_research.health(),
+        bitget_signal.health(),
+        _decision_worker_status(),
+    )
+    checks = {
+        "bitget_live": bitget_connected,
+        "durable_storage": store.durable,
+        "qwen_configured": bool(qwen.diagnostics().get("configured")),
+        "vibe_connected": bool(vibe_status.get("connected")),
+        "signal_connected": bool(signal_status.get("connected")),
+        "decision_worker_connected": bool(worker_status.get("connected")),
+        "jev_configured": bool(settings.jev_adapter_url),
+        "jev_worker_enabled": bool(worker_status.get("jev_enabled")),
+    }
+    core_ready = (
+        checks["bitget_live"]
+        and checks["durable_storage"]
+        and checks["qwen_configured"]
+    )
+    research_ready = core_ready and checks["vibe_connected"] and checks["signal_connected"]
+    decision_tape_ready = core_ready and checks["decision_worker_connected"]
+    full_jev_ready = decision_tape_ready and checks["jev_configured"] and checks["jev_worker_enabled"]
+    missing = [name for name, passed in checks.items() if not passed]
+    return {
+        "data": {
+            "core_ready": core_ready,
+            "research_ready": research_ready,
+            "decision_tape_ready": decision_tape_ready,
+            "full_jev_ready": full_jev_ready,
+            "checks": checks,
+            "missing": missing,
+            "worker": worker_status,
+            "note": "All checks are operational checks, not claims of trading profitability.",
         }
     }
 
@@ -434,7 +521,6 @@ async def review_battle(battle_id: str, x_player_id: str | None = Header(default
 @app.get("/api/session/now")
 async def session_now() -> dict[str, object]:
     from app.services.shadow import SESSION_LABEL, session_of
-    from datetime import datetime, timezone
 
     now = datetime.now(timezone.utc)
     return {"data": {"now": now.isoformat(), "session": session_of(now), "label": SESSION_LABEL}}

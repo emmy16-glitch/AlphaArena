@@ -97,8 +97,14 @@ jobs:
         run: ruff check app tests
       - name: Unit, budget and safety tests
         run: pytest -q
-      - name: Compile backend
-        run: python -m compileall -q app
+      - name: Compile backend and deployment entrypoints
+        run: |
+          python -m compileall -q app
+          python -m py_compile scripts/decision_worker.py ../deploy/vibe_gateway.py
+          python -m json.tool ../railway.worker.json >/dev/null
+          python -m json.tool ../railway.vibe.json >/dev/null
+          grep -q 'VIBE_TRADING_ENABLE_SHELL_TOOLS=0' ../deploy/Dockerfile.vibe
+          grep -q 'VIBE_PROXY_TOKEN' ../deploy/vibe_gateway.py
       - name: Import FastAPI application
         run: python -c "from app.main import app; assert app.title == 'AlphaArena API'; assert app.version == '0.5.0'; print(app.version)"
 

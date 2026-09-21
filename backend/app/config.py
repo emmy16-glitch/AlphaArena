@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     # Vibe-Trading is a research-only MCP sidecar. Shell tools stay disabled in
     # the sidecar container. A longer cache protects latency and free resources.
     vibe_mcp_url: str = ""
+    vibe_mcp_token: str = ""
     vibe_cache_seconds: int = 900
     mcp_timeout_seconds: float = 20.0
 

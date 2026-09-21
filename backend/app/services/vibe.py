@@ -196,8 +196,13 @@ class VibeTradingResearch:
     def enabled(self) -> bool:
         return settings.vibe_enabled
 
+    @staticmethod
+    def _headers() -> dict[str, str]:
+        token = settings.vibe_mcp_token.strip()
+        return {"Authorization": f"Bearer {token}"} if token else {}
+
     async def _call(self, name: str, arguments: dict[str, Any]) -> Any:
-        client = MCPHttpClient(settings.vibe_mcp_url, "Vibe-Trading")
+        client = MCPHttpClient(settings.vibe_mcp_url, "Vibe-Trading", self._headers())
         return await client.call_tool(name, arguments)
 
     async def health(self) -> dict[str, Any]:
@@ -205,7 +210,7 @@ class VibeTradingResearch:
             return {"connected": False, "reason": "Vibe-Trading research is not configured"}
         try:
             tools = await asyncio.wait_for(
-                MCPHttpClient(settings.vibe_mcp_url, "Vibe-Trading").list_tools(),
+                MCPHttpClient(settings.vibe_mcp_url, "Vibe-Trading", self._headers()).list_tools(),
                 timeout=settings.mcp_timeout_seconds + 3,
             )
             names = {str(tool.get("name")) for tool in tools if tool.get("name")}

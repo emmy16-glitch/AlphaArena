@@ -15,7 +15,7 @@ It turns a market idea into a falsifiable thesis, challenges it with opposing ev
 
 | Resource | Link |
 | --- | --- |
-| 🌐 **Live demo (Vercel)** | **https://alphaarena.vercel.app** |
+| 🌐 **Live demo (Vercel)** | **https://alphaarena-sand.vercel.app** |
 | 📦 Repository | https://github.com/emmy16-glitch/AlphaArena |
 | 📖 Full docs hub | [docs/README.md](docs/README.md) |
 | 🎬 3-minute judge script | [docs/JUDGE_DEMO.md](docs/JUDGE_DEMO.md) |
@@ -226,7 +226,7 @@ The default hackathon configuration is intentionally conservative:
 
 | Guardrail | Default |
 | --- | ---: |
-| Live demo | https://alphaarena.vercel.app |
+| Live demo | https://alphaarena-sand.vercel.app |
 | Arena starting balance | `$100,000` virtual |
 | Real-money trading | Disabled / no execution route |
 | Scheduled background LLM calls | `0` |
@@ -295,7 +295,7 @@ Then open `http://127.0.0.1:8000/docs` for the interactive API.
 | Scope | File | Key variables |
 | --- | --- | --- |
 | Frontend | `.env.example` | `VITE_API_BASE_URL` |
-| Backend | `backend/.env.example` | `BITGET_BASE_URL`, `FRONTEND_ORIGINS`, `WATCHER_*`, `AI_PROVIDER`, `QWEN_*`, `BITGET_SIGNAL_MCP_URL`, `SIGNAL_CACHE_SECONDS`, `VIBE_MCP_URL`, `VIBE_CACHE_SECONDS`, `MONGODB_URI`, `MONGODB_DB`, `ARENA_STARTING_CAPITAL` |
+| Backend | `backend/.env.example` | `BITGET_BASE_URL`, `FRONTEND_ORIGINS`, `WATCHER_*`, `AI_PROVIDER`, `QWEN_*`, `BITGET_SIGNAL_MCP_URL`, `VIBE_MCP_URL`, `VIBE_MCP_TOKEN`, `MONGODB_*`, `REQUIRE_PERSISTENT_STORAGE`, `JEV_*`, `DECISION_TAPE_*`, `ARENA_STARTING_CAPITAL` |
 
 See [backend/.env.example](backend/.env.example) and [backend/README.md](backend/README.md) for defaults and semantics.
 
@@ -327,6 +327,7 @@ Useful read-only endpoints (also live on the Vercel deployment under `/api/...`)
 - `GET /api/health`
 - `GET /api/integrations/status`
 - `GET /api/integrations/diagnostics`
+- `GET /api/release/readiness` — machine-readable production gate for storage, research, worker and Jev readiness
 - `GET /api/budget/status`
 - `GET /api/market/instruments/reality`
 - `GET /api/market/assets`
@@ -372,7 +373,7 @@ Backend source map: see [backend/README.md](backend/README.md).
 
 ## Deployment
 
-**Live: https://alphaarena.vercel.app**
+**Live: https://alphaarena-sand.vercel.app**
 
 - Static frontend (`dist/`) + serverless FastAPI (`api/index.py`) via `vercel.json` rewrites (`/api/* → /api/index.py`, everything else → SPA).
 - Full-stack local alternative: `docker compose up --build` (FastAPI + Vibe sidecar).

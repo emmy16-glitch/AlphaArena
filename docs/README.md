@@ -1,6 +1,6 @@
 # AlphaArena documentation
 
-> **Live demo:** https://alphaarena.vercel.app · **Product overview:** [repository README](../README.md) · **License:** [MIT](../LICENSE)
+> **Live demo:** https://alphaarena-sand.vercel.app · **Product overview:** [repository README](../README.md) · **License:** [MIT](../LICENSE)
 
 Start with the repository [README](../README.md) for the one-screen product overview and demo flow, then use this hub for depth.
 
