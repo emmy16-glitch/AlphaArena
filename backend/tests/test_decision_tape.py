@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from app.main import app
@@ -101,6 +102,11 @@ async def test_due_decisions_are_scored_and_calibrated(monkeypatch: pytest.Monke
     )
     decision["snapshot_captured_at"] = "2000-01-01T00:00:00+00:00"
     await store.save("decision_tape", decision["id"], decision)
+    job = await store.get("decision_evaluations", decision["id"])
+    assert job is not None
+    job["due_at"] = "2000-01-01T00:05:00+00:00"
+    job["next_index"] = 0
+    await store.save("decision_evaluations", decision["id"], job)
 
     updated = await decision_tape.evaluate_due("guest_eval")
     jev_row = next(row for row in updated if row["id"] == decision["id"])
