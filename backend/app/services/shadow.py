@@ -109,14 +109,26 @@ def kill_check(
         return None
     for candle in tag_candles(candles):
         try:
-            price = float(candle.get("close", candle.get("price", 0)) or 0)
+            close = float(candle.get("close", candle.get("price", 0)) or 0)
+            low = float(candle.get("low", close) or close)
+            high = float(candle.get("high", close) or close)
         except (TypeError, ValueError):
             continue
-        if price <= 0:
+        if close <= 0 or low <= 0 or high <= 0:
             continue
-        hit = price <= float(kill_price) if upper == "LONG" else price >= float(kill_price)
+        if upper == "LONG":
+            hit = low <= float(kill_price)
+            touched = low
+        else:
+            hit = high >= float(kill_price)
+            touched = high
         if hit:
-            return {"kill_hit": True, "kill_at": str(candle.get("iso")), "kill_session": str(candle.get("session")), "kill_price_touched": price}
+            return {
+                "kill_hit": True,
+                "kill_at": str(candle.get("iso")),
+                "kill_session": str(candle.get("session")),
+                "kill_price_touched": touched,
+            }
     return {"kill_hit": False, "kill_at": None, "kill_session": None, "kill_price_touched": None}
 
 
