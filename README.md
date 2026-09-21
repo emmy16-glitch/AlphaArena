@@ -160,7 +160,7 @@ See [docs/SHADOW_SESSION.md](docs/SHADOW_SESSION.md).
 | Research | Vibe-Trading MCP sidecar (`vibe-trading-ai==0.1.15`, research-only) |
 | Macro context | Bitget Signal MCP (cached, time-bounded) |
 | Reasoning (optional) | Qwen 3.8 27B via Groq, user-triggered, budget-fused |
-| Persistence (optional) | MongoDB Atlas, with in-memory fallback |
+| Persistence | MongoDB Atlas in production; in-memory fallback for local/dev |
 | Testing | Playwright (7-project matrix), pytest, ruff, `tsc`, Vite build |
 | Deployment | Vercel (frontend + serverless API, see `vercel.json` / `api/index.py`), Docker Compose for backend + Vibe sidecar |
 
