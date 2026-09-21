@@ -182,10 +182,16 @@ class DecisionTapeService:
                 target = captured + timedelta(minutes=minutes)
                 if now < target:
                     continue
-                observed = await bitget_market.get_price_near(
-                    str(decision["symbol"]),
-                    int(target.timestamp() * 1000),
-                )
+                try:
+                    observed = await bitget_market.get_price_near(
+                        str(decision["symbol"]),
+                        int(target.timestamp() * 1000),
+                    )
+                except Exception:
+                    # One temporarily unavailable historical candle must not
+                    # make the entire tape/summary unavailable. Leave this
+                    # horizon pending and retry on a later evaluation pass.
+                    continue
                 result = _outcome(
                     str(decision["direction"]),
                     float(decision["entry_price"]),
