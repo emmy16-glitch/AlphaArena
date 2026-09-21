@@ -96,12 +96,13 @@ def _parse_time(value: Any) -> datetime:
 
 class ArenaService:
     def __init__(self) -> None:
-        # Prevent two simultaneous paper-battle requests from both seeing the
-        # same free capital and oversubscribing the virtual portfolio.
-        self._create_lock = asyncio.Lock()
+        # Capital reservation is serialized by AlphaStore.player_lock. With
+        # Mongo configured this is also a short distributed lease, so separate
+        # serverless workers cannot both spend the same free paper capital.
+        self._create_lock = asyncio.Lock()  # legacy local fallback; store lock is authoritative
 
     async def create_battle(self, request: Any, player_id: str = "guest_default") -> dict[str, Any]:
-        async with self._create_lock:
+        async with store.player_lock(player_id):
             if request.user_side != "WAIT":
                 portfolio = await self.portfolio(player_id)
                 free = float(portfolio["free_capital"])
