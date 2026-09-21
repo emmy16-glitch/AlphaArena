@@ -404,7 +404,7 @@ def draw_cta(img, t):
              F_H1, GRAY, alpha=sa * a)
     ca, _ = fade_slide(lt, 0.9, 0.6, 0)
     m4 = ImageDraw.Draw(Image.new("RGBA", (8, 8)))
-    left_t = "alphaarena.vercel.app"
+    left_t = "alphaarena-sand.vercel.app"
     right_t = "github.com/emmy16-glitch/AlphaArena"
     lw = m4.textbbox((0, 0), left_t, font=F_CARD_T)[2]
     rw = m4.textbbox((0, 0), right_t, font=F_CARD_T)[2]
