@@ -154,6 +154,55 @@ class AlphaStore:
                     raise RuntimeError("Persistent storage read failed") from exc
         return None
 
+    async def list_due_decision_evaluations(
+        self,
+        player_id: str,
+        due_before: str,
+        limit: int = 500,
+    ) -> list[dict[str, Any]]:
+        """Return pending Decision Tape jobs by due time, not by creation age."""
+        rows: list[dict[str, Any]] = []
+        safe_limit = max(1, min(5000, int(limit)))
+        if self._mongo is not None:
+            try:
+                def query() -> list[dict[str, Any]]:
+                    cursor = (
+                        self._mongo["decision_evaluations"]
+                        .find({
+                            "player_id": player_id,
+                            "status": "pending",
+                            "due_at": {"$lte": due_before},
+                        })
+                        .sort("due_at", 1)
+                        .limit(safe_limit)
+                    )
+                    return list(cursor)
+
+                mongo_rows = await asyncio.to_thread(query)
+                for row in mongo_rows:
+                    row.pop("_id", None)
+                    rows.append(row)
+            except Exception as exc:
+                if settings.require_persistent_storage:
+                    raise RuntimeError("Persistent evaluation queue read failed") from exc
+
+        async with self._lock:
+            memory_rows = [
+                deepcopy(row)
+                for row in self._memory["decision_evaluations"].values()
+                if str(row.get("player_id") or "") == player_id
+                and row.get("status") == "pending"
+                and str(row.get("due_at") or "") <= due_before
+            ]
+        by_id: dict[str, dict[str, Any]] = {}
+        for row in rows + memory_rows:
+            key = str(row.get("id") or row.get("decision_id") or "")
+            if key:
+                by_id[key] = row
+        due = list(by_id.values())
+        due.sort(key=lambda row: str(row.get("due_at") or ""))
+        return due[:safe_limit]
+
     async def record_decision_metric(
         self,
         *,
