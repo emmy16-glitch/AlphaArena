@@ -81,8 +81,15 @@ class DecisionTapeService:
             "market_timestamp": int(asset.get("timestamp") or int(now.timestamp() * 1000)),
             "price": float(asset["price"]),
             "change_pct_24h": float(asset.get("changePct") or 0.0),
+            "change_abs_24h": float(asset.get("changeAbs") or 0.0),
+            "high24": float(asset.get("high24") or asset["price"]),
+            "low24": float(asset.get("low24") or asset["price"]),
+            "bid": asset.get("bid"),
+            "ask": asset.get("ask"),
             "spread_bps": float(asset.get("spreadBps") or 0.0),
+            "turnover24h": float(asset.get("turnover24h") or 0.0),
             "spark": list(asset.get("spark") or [])[-24:],
+            "market_data_quality": str(asset.get("marketDataQuality") or "unknown"),
             "source": "bitget",
         }
         await store.save("decision_snapshots", snapshot_id, snapshot)
@@ -131,6 +138,33 @@ class DecisionTapeService:
         }
         await store.save("decision_tape", decision_id, decision)
         return decision
+
+    async def get_snapshot(self, snapshot_id: str, player_id: str = "guest_default") -> dict[str, Any] | None:
+        snapshot = await store.get("decision_snapshots", snapshot_id)
+        if snapshot is None or str(snapshot.get("player_id") or "guest_default") != player_id:
+            return None
+        return snapshot
+
+    @staticmethod
+    def market_asset(snapshot: dict[str, Any]) -> dict[str, Any]:
+        """Rebuild the Bitget-shaped asset view frozen at snapshot capture."""
+        price = float(snapshot.get("price") or 0)
+        return {
+            "symbol": str(snapshot.get("symbol")),
+            "price": price,
+            "changePct": float(snapshot.get("change_pct_24h") or 0),
+            "changeAbs": float(snapshot.get("change_abs_24h") or 0),
+            "high24": float(snapshot.get("high24") or price),
+            "low24": float(snapshot.get("low24") or price),
+            "bid": snapshot.get("bid"),
+            "ask": snapshot.get("ask"),
+            "spreadBps": float(snapshot.get("spread_bps") or 0),
+            "turnover24h": float(snapshot.get("turnover24h") or 0),
+            "spark": list(snapshot.get("spark") or []),
+            "timestamp": int(snapshot.get("market_timestamp") or 0),
+            "source": "bitget-frozen-snapshot",
+            "marketDataQuality": str(snapshot.get("market_data_quality") or "unknown"),
+        }
 
     async def submit(
         self,
