@@ -242,6 +242,53 @@ async def integration_diagnostics() -> dict[str, object]:
     }
 
 
+@app.get("/api/release/readiness")
+async def release_readiness() -> dict[str, object]:
+    async def bitget_check() -> bool:
+        try:
+            return bool(await bitget_market.get_reality_instruments())
+        except Exception:
+            return False
+
+    bitget_connected, vibe_status, signal_status, worker_status = await asyncio.gather(
+        bitget_check(),
+        vibe_research.health(),
+        bitget_signal.health(),
+        _decision_worker_status(),
+    )
+    checks = {
+        "bitget_live": bitget_connected,
+        "durable_storage": store.durable,
+        "qwen_configured": bool(qwen.diagnostics().get("configured")),
+        "vibe_connected": bool(vibe_status.get("connected")),
+        "signal_connected": bool(signal_status.get("connected")),
+        "decision_worker_connected": bool(worker_status.get("connected")),
+        "jev_configured": bool(settings.jev_adapter_url),
+        "jev_worker_enabled": bool(worker_status.get("jev_enabled")),
+    }
+    core_ready = (
+        checks["bitget_live"]
+        and checks["durable_storage"]
+        and checks["qwen_configured"]
+    )
+    research_ready = core_ready and checks["vibe_connected"] and checks["signal_connected"]
+    decision_tape_ready = core_ready and checks["decision_worker_connected"]
+    full_jev_ready = decision_tape_ready and checks["jev_configured"] and checks["jev_worker_enabled"]
+    missing = [name for name, passed in checks.items() if not passed]
+    return {
+        "data": {
+            "core_ready": core_ready,
+            "research_ready": research_ready,
+            "decision_tape_ready": decision_tape_ready,
+            "full_jev_ready": full_jev_ready,
+            "checks": checks,
+            "missing": missing,
+            "worker": worker_status,
+            "note": "All checks are operational checks, not claims of trading profitability.",
+        }
+    }
+
+
 @app.get("/api/market/instruments/reality")
 async def reality_instruments() -> dict[str, object]:
     try:
