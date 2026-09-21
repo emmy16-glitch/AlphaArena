@@ -4,7 +4,7 @@ import asyncio
 import signal
 
 from app.config import settings
-from app.services.decision_tape import decision_tape
+from app.services.decision_tape import GLOBAL_TAPE_PLAYER_ID, decision_tape
 from app.services.jev_bridge import JevBridgeError, jev_bridge
 
 
@@ -23,7 +23,7 @@ async def run() -> None:
         for item in settings.decision_tape_symbols.split(",")
         if item.strip()
     ] or ["rNVDA"]
-    player_id = "guest_decision_worker"
+    player_id = GLOBAL_TAPE_PLAYER_ID
     stopping = asyncio.Event()
     loop = asyncio.get_running_loop()
 
