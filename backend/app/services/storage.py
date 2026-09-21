@@ -2,15 +2,21 @@ from __future__ import annotations
 
 import asyncio
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from copy import deepcopy
-from typing import Any
+from datetime import datetime, timedelta, timezone
+from typing import Any, AsyncIterator
+from uuid import uuid4
 
 from app.config import settings
 
 try:
-    from pymongo import MongoClient
+    from pymongo import MongoClient, ReturnDocument
+    from pymongo.errors import DuplicateKeyError
 except Exception:
     MongoClient = None  # type: ignore[assignment]
+    ReturnDocument = None  # type: ignore[assignment]
+    DuplicateKeyError = Exception  # type: ignore[assignment,misc]
 
 
 class AlphaStore:
@@ -24,11 +30,13 @@ class AlphaStore:
     def __init__(self) -> None:
         self._memory: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
         self._lock = asyncio.Lock()
+        self._player_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
         self._mongo = None
         self._mongo_client = None
         if settings.mongodb_uri and MongoClient is not None:
             try:
                 self._mongo_client = MongoClient(settings.mongodb_uri, serverSelectionTimeoutMS=2500)
+                self._mongo_client.admin.command("ping")
                 self._mongo = self._mongo_client[settings.mongodb_db]
             except Exception:
                 self._mongo = None
@@ -37,6 +45,58 @@ class AlphaStore:
     @property
     def mode(self) -> str:
         return "mongodb+memory" if self._mongo is not None else "memory"
+
+    @property
+    def durable(self) -> bool:
+        return self._mongo is not None
+
+    @asynccontextmanager
+    async def player_lock(self, player_id: str, ttl_seconds: int = 15) -> AsyncIterator[None]:
+        """Serialize paper-capital reservations locally and across Mongo workers."""
+        local = self._player_locks[player_id]
+        await local.acquire()
+        token = uuid4().hex
+        acquired_remote = False
+        try:
+            if self._mongo is not None and ReturnDocument is not None:
+                collection = self._mongo["_player_locks"]
+                deadline = asyncio.get_running_loop().time() + 5.0
+                while asyncio.get_running_loop().time() < deadline:
+                    now = datetime.now(timezone.utc)
+                    expires = now + timedelta(seconds=max(5, ttl_seconds))
+                    try:
+                        doc = await asyncio.to_thread(
+                            collection.find_one_and_update,
+                            {
+                                "_id": f"player:{player_id}",
+                                "$or": [
+                                    {"expires_at": {"$lte": now}},
+                                    {"owner": token},
+                                ],
+                            },
+                            {"$set": {"owner": token, "expires_at": expires}},
+                            upsert=True,
+                            return_document=ReturnDocument.AFTER,
+                        )
+                        if doc and doc.get("owner") == token:
+                            acquired_remote = True
+                            break
+                    except DuplicateKeyError:
+                        pass
+                    await asyncio.sleep(0.05)
+                if not acquired_remote:
+                    raise TimeoutError("Could not acquire player capital lock")
+            yield
+        finally:
+            if acquired_remote and self._mongo is not None:
+                try:
+                    await asyncio.to_thread(
+                        self._mongo["_player_locks"].delete_one,
+                        {"_id": f"player:{player_id}", "owner": token},
+                    )
+                except Exception:
+                    pass
+            local.release()
 
     async def save(self, collection: str, key: str, value: dict[str, Any]) -> None:
         async with self._lock:
