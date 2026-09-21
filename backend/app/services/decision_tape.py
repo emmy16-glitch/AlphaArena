@@ -139,6 +139,23 @@ class DecisionTapeService:
             "outcomes": {},
         }
         await store.save("decision_tape", decision_id, decision)
+        first_label, first_minutes = next(iter(HORIZONS_MINUTES.items()))
+        first_due = _parse_time(snapshot["captured_at"]) + timedelta(minutes=first_minutes)
+        await store.save(
+            "decision_evaluations",
+            decision_id,
+            {
+                "id": decision_id,
+                "decision_id": decision_id,
+                "player_id": decision["player_id"],
+                "next_index": 0,
+                "next_horizon": first_label,
+                "due_at": first_due.isoformat(),
+                "status": "pending",
+                "created_at": decision["decided_at"],
+                "updated_at": decision["decided_at"],
+            },
+        )
         return decision
 
     async def get_snapshot(self, snapshot_id: str, player_id: str = "guest_default") -> dict[str, Any] | None:
@@ -212,83 +229,142 @@ class DecisionTapeService:
 
     async def evaluate_due(self, player_id: str = "guest_default") -> list[dict[str, Any]]:
         now = datetime.now(timezone.utc)
-        # A browser evaluates only its own pending observations. The dedicated
-        # worker evaluates the global market tape so a page view cannot trigger
-        # a large backlog of public Jev candle lookups.
-        decisions = await self.list(player_id, limit=1000, include_global=False)
+        jobs = await store.list_due_decision_evaluations(player_id, now.isoformat(), limit=500)
         updated: list[dict[str, Any]] = []
-        for decision in decisions:
+        horizon_items = list(HORIZONS_MINUTES.items())
+        price_cache: dict[tuple[str, int], dict[str, Any]] = {}
+
+        for job in jobs:
+            decision = await store.get("decision_tape", str(job.get("decision_id") or job.get("id")))
+            if decision is None:
+                # Keep the job pending: a transient persistent-read problem
+                # should not silently discard an evaluation obligation.
+                continue
+
             captured = _parse_time(decision["snapshot_captured_at"])
             outcomes = dict(decision.get("outcomes") or {})
+            index = max(0, int(job.get("next_index") or 0))
             changed = False
-            for label, minutes in HORIZONS_MINUTES.items():
-                if label in outcomes:
-                    continue
+            blocked = False
+
+            while index < len(horizon_items):
+                label, minutes = horizon_items[index]
                 target = captured + timedelta(minutes=minutes)
-                if now < target:
-                    continue
-                try:
-                    observed = await bitget_market.get_price_near(
-                        str(decision["symbol"]),
-                        int(target.timestamp() * 1000),
+                if target > now:
+                    break
+
+                if label not in outcomes:
+                    cache_key = (str(decision["symbol"]), int(target.timestamp() * 1000))
+                    observed = price_cache.get(cache_key)
+                    if observed is None:
+                        try:
+                            observed = await bitget_market.get_price_near(cache_key[0], cache_key[1])
+                        except Exception:
+                            # Leave this horizon queued for a later pass.
+                            blocked = True
+                            break
+                        price_cache[cache_key] = observed
+
+                    result = _outcome(
+                        str(decision["direction"]),
+                        float(decision["entry_price"]),
+                        float(observed["price"]),
+                        float(decision["confidence"]),
                     )
-                except Exception:
-                    # One temporarily unavailable historical candle must not
-                    # make the entire tape/summary unavailable. Leave this
-                    # horizon pending and retry on a later evaluation pass.
-                    continue
-                result = _outcome(
-                    str(decision["direction"]),
-                    float(decision["entry_price"]),
-                    float(observed["price"]),
-                    float(decision["confidence"]),
-                )
-                result.update({
-                    "target_at": target.isoformat(),
-                    "observed_at": datetime.fromtimestamp(
-                        int(observed["timestamp"]) / 1000,
-                        tz=timezone.utc,
-                    ).isoformat(),
-                    "source": observed.get("source"),
-                    "granularity": observed.get("granularity"),
-                })
-                outcomes[label] = result
-                changed = True
+                    result.update({
+                        "target_at": target.isoformat(),
+                        "observed_at": datetime.fromtimestamp(
+                            int(observed["timestamp"]) / 1000,
+                            tz=timezone.utc,
+                        ).isoformat(),
+                        "source": observed.get("source"),
+                        "granularity": observed.get("granularity"),
+                        "selection": observed.get("selection"),
+                    })
+                    # Metric write is idempotent per decision+horizon. It runs
+                    # before the decision/job writes so a retry cannot double
+                    # count after a process interruption.
+                    await store.record_decision_metric(
+                        player_id=str(decision.get("player_id") or "guest_default"),
+                        lane=str(decision.get("lane") or "other"),
+                        horizon=label,
+                        decision_id=str(decision["id"]),
+                        correct=bool(result["correct"]),
+                        signed_return_pct=float(result["signed_return_pct"]),
+                        brier=float(result["brier"]),
+                    )
+                    outcomes[label] = result
+                    changed = True
+
+                index += 1
+
             if changed:
                 decision["outcomes"] = outcomes
                 await store.save("decision_tape", str(decision["id"]), decision)
                 updated.append(decision)
+
+            job["next_index"] = index
+            job["updated_at"] = datetime.now(timezone.utc).isoformat()
+            if index >= len(horizon_items):
+                job["status"] = "done"
+                job["next_horizon"] = None
+                job["due_at"] = None
+            else:
+                next_label, next_minutes = horizon_items[index]
+                job["status"] = "pending"
+                job["next_horizon"] = next_label
+                job["due_at"] = (captured + timedelta(minutes=next_minutes)).isoformat()
+                if blocked:
+                    # Same due_at is retained, so the next evaluator retries it.
+                    pass
+            await store.save("decision_evaluations", str(job["id"]), job)
+
         return updated
 
     async def summary(self, player_id: str = "guest_default") -> dict[str, Any]:
         await self.evaluate_due(player_id)
-        decisions = await self.list(player_id, limit=1000, include_global=True)
+        metric_rows = await store.list("decision_metrics", limit=5000)
+        owners = {player_id, GLOBAL_TAPE_PLAYER_ID}
         by_lane: dict[str, dict[str, Any]] = {}
-        for decision in decisions:
-            lane = str(decision.get("lane") or "other")
+
+        for row in metric_rows:
+            if str(row.get("player_id") or "") not in owners:
+                continue
+            lane = str(row.get("lane") or "other")
+            horizon = str(row.get("horizon") or "")
+            if horizon not in HORIZONS_MINUTES:
+                continue
             lane_row = by_lane.setdefault(lane, {"decisions": 0, "horizons": {}})
-            lane_row["decisions"] += 1
-            for horizon, outcome in (decision.get("outcomes") or {}).items():
-                h = lane_row["horizons"].setdefault(
-                    horizon,
-                    {"n": 0, "hits": 0, "signed_return_sum": 0.0, "brier_sum": 0.0},
-                )
-                h["n"] += 1
-                h["hits"] += 1 if outcome.get("correct") else 0
-                h["signed_return_sum"] += float(outcome.get("signed_return_pct") or 0)
-                h["brier_sum"] += float(outcome.get("brier") or 0)
+            stats = lane_row["horizons"].setdefault(
+                horizon,
+                {"n": 0, "hits": 0, "signed_return_sum": 0.0, "brier_sum": 0.0},
+            )
+            stats["n"] += int(row.get("n") or 0)
+            stats["hits"] += int(row.get("hits") or 0)
+            stats["signed_return_sum"] += float(row.get("signed_return_sum") or 0)
+            stats["brier_sum"] += float(row.get("brier_sum") or 0)
+
         for lane_row in by_lane.values():
+            evaluated_counts: list[int] = []
             for stats in lane_row["horizons"].values():
                 n = int(stats["n"])
+                evaluated_counts.append(n)
                 stats["hit_rate_pct"] = round(stats.pop("hits") / n * 100, 2) if n else 0.0
                 stats["avg_signed_return_pct"] = round(stats.pop("signed_return_sum") / n, 6) if n else 0.0
                 stats["brier_score"] = round(stats.pop("brier_sum") / n, 6) if n else None
+            # This means evaluated observations, not total raw calls. It stays
+            # truthful even when the continuous tape contains millions of rows.
+            lane_row["decisions"] = max(evaluated_counts, default=0)
+
         return {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "horizons": HORIZONS_MINUTES,
             "wait_deadband_pct": WAIT_DEADBAND_PCT,
             "lanes": by_lane,
-            "method": "Every lane is evaluated against the same observed Bitget snapshot and timestamp-targeted future candles.",
+            "method": (
+                "Cumulative idempotent metrics. Every lane is evaluated against "
+                "timestamp-targeted Bitget candles from its frozen market snapshot."
+            ),
         }
 
 
