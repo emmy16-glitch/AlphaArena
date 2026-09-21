@@ -198,6 +198,8 @@ export const productApi = {
     apiData<DecisionCapture>('/api/decision-tape/snapshots', { method: 'POST', body: JSON.stringify({ symbol }) }),
   submitDecision: (body: { snapshot_id: string; lane: Exclude<DecisionLane, 'baseline'>; direction: Direction; confidence: number; model?: string; latency_ms?: number; note?: string; metadata?: Record<string, unknown> }) =>
     apiData<DecisionRecord>('/api/decision-tape/decisions', { method: 'POST', body: JSON.stringify(body) }),
+  runNightWatchDecision: (body: { snapshot_id: string; direction: Direction; thesis: string; risk_pct?: number; holding_period?: string }) =>
+    apiData<{ report: NightWatchReport; decision: DecisionRecord }>('/api/decision-tape/nightwatch', { method: 'POST', body: JSON.stringify(body) }),
   decisionTape: () => apiData<DecisionRecord[]>('/api/decision-tape/decisions'),
   evaluateDecisions: () => apiData<DecisionRecord[]>('/api/decision-tape/evaluate', { method: 'POST' }),
   decisionSummary: () => apiData<DecisionTapeSummary>('/api/decision-tape/summary'),
