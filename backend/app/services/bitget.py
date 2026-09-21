@@ -170,12 +170,22 @@ class BitgetMarketClient:
             granularity = "1H"
         if not candles:
             raise BitgetError(f"No candle available near requested settlement time for {display_symbol}")
-        candle = min(candles, key=lambda row: abs(int(row["ts"]) - int(when_ms)))
+        at_or_after = [row for row in candles if int(row["ts"]) >= int(when_ms)]
+        if at_or_after:
+            candle = min(at_or_after, key=lambda row: int(row["ts"]))
+            selection = "at_or_after_expiry"
+        else:
+            # Historical APIs can occasionally omit the next bucket. Using the
+            # latest prior observation is explicit and auditable; we never use
+            # an arbitrary current ticker as a substitute for expiry.
+            candle = max(candles, key=lambda row: int(row["ts"]))
+            selection = "latest_before_expiry"
         return {
             "price": float(candle["close"]),
             "timestamp": int(candle["ts"]),
             "source": "bitget-candle",
             "granularity": granularity,
+            "selection": selection,
         }
     async def get_asset(self, display_symbol: str) -> dict[str, Any]:
         if display_symbol not in DISPLAY_TICKERS:
