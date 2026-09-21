@@ -42,6 +42,7 @@ def battle_canonical_payload(battle: dict[str, Any]) -> str:
         "settled_at": str(battle.get("settled_at")),
         "settlement_source": str(battle.get("settlement_source") or ""),
         "settlement_granularity": str(battle.get("settlement_granularity") or ""),
+        "settlement_selection": str(battle.get("settlement_selection") or ""),
         "shadow": battle.get("shadow"),
         "flatten_before_dark": battle.get("flatten_before_dark"),
     }
@@ -170,6 +171,7 @@ class ArenaService:
                 "settlement_hash": None,
                 "settlement_source": None,
                 "settlement_granularity": None,
+                "settlement_selection": None,
                 "status": "live",
                 "source": "bitget",
             }
@@ -285,6 +287,7 @@ class ArenaService:
             battle["settled_at"] = observed_at.isoformat()
             battle["settlement_source"] = str(observed.get("source") or "bitget-candle")
             battle["settlement_granularity"] = str(observed.get("granularity") or "unknown")
+            battle["settlement_selection"] = str(observed.get("selection") or "unknown")
             battle["current_price"] = settled
             battle["user_pnl_pct"] = _pnl(str(battle["user_side"]), float(battle["entry_price"]), settled)
             battle["ai_pnl_pct"] = _pnl(str(battle["ai_side"]), float(battle["entry_price"]), settled)
