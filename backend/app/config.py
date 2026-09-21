@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     # Optional persistence. The Arena remains paper-only regardless of storage.
     mongodb_uri: str = ""
     mongodb_db: str = "alphaarena"
+    require_persistent_storage: bool = False
     arena_starting_capital: float = 100_000.0
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
