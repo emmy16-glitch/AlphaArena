@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import pytest
 
+from app.main import app
 from app.services import decision_tape as tape_module
+from app.services import nightwatch as nightwatch_module
 from app.services.decision_tape import decision_tape
 from app.services.storage import store
 
@@ -110,3 +112,60 @@ async def test_due_decisions_are_scored_and_calibrated(monkeypatch: pytest.Monke
     assert stats["n"] == 1
     assert stats["hit_rate_pct"] == 100.0
     assert stats["brier_score"] == pytest.approx(0.04)
+
+
+@pytest.mark.asyncio
+async def test_nightwatch_lane_uses_frozen_snapshot_without_refetching_market(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await store.clear_memory()
+
+    async def initial_asset(symbol: str) -> dict[str, object]:
+        return {
+            "symbol": symbol,
+            "price": 100.0,
+            "changePct": 1.5,
+            "changeAbs": 1.5,
+            "high24": 102.0,
+            "low24": 98.0,
+            "spreadBps": 2.0,
+            "turnover24h": 1000000.0,
+            "spark": [99.0, 99.4, 99.7, 99.9, 100.0],
+            "timestamp": 1_700_000_000_000,
+            "marketDataQuality": "live",
+        }
+
+    monkeypatch.setattr(tape_module.bitget_market, "get_asset", initial_asset)
+    captured = await decision_tape.capture_snapshot("rNVDA", "guest_same")
+    snapshot_id = captured["snapshot"]["id"]
+
+    async def forbidden_refresh(_: str) -> dict[str, object]:
+        raise AssertionError("NightWatch must not refresh Bitget for a frozen Decision Tape run")
+
+    async def no_external_context(_: str) -> tuple[dict[str, object], dict[str, object]]:
+        return (
+            {"connected": False, "historical_stats": {}, "analogues": [], "errors": []},
+            {"connected": False, "evidence": {}, "errors": []},
+        )
+
+    monkeypatch.setattr(nightwatch_module.bitget_market, "get_asset", forbidden_refresh)
+    monkeypatch.setattr(nightwatch_module.nightwatch, "_external_context", no_external_context)
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/decision-tape/nightwatch",
+            headers={"X-Player-ID": "guest_same"},
+            json={
+                "snapshot_id": snapshot_id,
+                "direction": "LONG",
+                "thesis": "Momentum remains positive over the next session.",
+                "risk_pct": 2.0,
+                "holding_period": "24H",
+            },
+        )
+    assert response.status_code == 200
+    payload = response.json()["data"]
+    assert payload["decision"]["snapshot_id"] == snapshot_id
+    assert payload["decision"]["lane"] == "nightwatch"
+    assert payload["report"]["symbol"] == "rNVDA"
