@@ -73,7 +73,7 @@ export type PulseEvent = {
 
 export type ShadowAttribution = {
   listed_move_pct: number; shadow_move_pct: number; total_move_pct: number;
-  kill_session: string | null; kill_at: string | null;
+  kill_session: string | null; kill_at: string | null; last_session?: string | null; last_at?: string | null;
   kill_hit?: boolean | null; kill_price_touched?: number | null;
   candle_count: number;
   granularity: string; is_estimate: boolean; last_listed_price: number | null;
@@ -97,7 +97,7 @@ export type BattleView = {
   user_side: Direction; ai_side: Direction; opponent: string;
   stake: number; quantity?: number | null; entry_price: number; current_price: number; user_pnl_pct: number; ai_pnl_pct: number;
   created_at: string; expires_at: string; settled_at?: string | null; settled_price?: number | null;
-  settlement_hash?: string | null; stated_confidence?: number | null;
+  settlement_hash?: string | null; settlement_source?: string | null; settlement_granularity?: string | null; settlement_selection?: string | null; stated_confidence?: number | null;
   status: 'live'|'settled'; source: string;
   shadow?: ShadowAttribution | null; flatten_before_dark?: FlattenBeforeDark | null;
 };
@@ -148,6 +148,34 @@ export type VibeSnapshot = {
   analogues: HistoricalAnalogue[]; provenance: Record<string, unknown>; errors: string[];
 };
 
+export type DecisionLane = 'human' | 'nightwatch' | 'jev' | 'baseline' | 'other';
+
+export type DecisionSnapshot = {
+  id: string; player_id: string; symbol: string; captured_at: string; market_timestamp: number;
+  price: number; change_pct_24h: number; spread_bps: number; spark: number[]; source: string;
+};
+
+export type DecisionOutcome = {
+  observed_price: number; move_pct: number; signed_return_pct: number; correct: boolean;
+  confidence: number; brier: number; wait_deadband_pct: number; target_at: string;
+  observed_at: string; source?: string | null; granularity?: string | null;
+};
+
+export type DecisionRecord = {
+  id: string; snapshot_id: string; player_id: string; symbol: string; lane: DecisionLane;
+  direction: Direction; confidence: number; model?: string | null; latency_ms?: number | null;
+  note?: string | null; metadata: Record<string, unknown>; entry_price: number;
+  decided_at: string; snapshot_captured_at: string; outcomes: Record<string, DecisionOutcome>;
+};
+
+export type DecisionCapture = { snapshot: DecisionSnapshot; baseline: DecisionRecord };
+
+export type DecisionTapeSummary = {
+  generated_at: string; horizons: Record<string, number>; wait_deadband_pct: number;
+  lanes: Record<string, { decisions: number; horizons: Record<string, { n: number; hit_rate_pct: number; avg_signed_return_pct: number; brier_score: number | null }> }>;
+  method: string;
+};
+
 export type BudgetStatus = {
   virtual_capital: number;
   real_money_trading: false;
@@ -166,6 +194,15 @@ export type BudgetStatus = {
 };
 
 export const productApi = {
+  captureDecisionSnapshot: (symbol: string) =>
+    apiData<DecisionCapture>('/api/decision-tape/snapshots', { method: 'POST', body: JSON.stringify({ symbol }) }),
+  submitDecision: (body: { snapshot_id: string; lane: Exclude<DecisionLane, 'baseline'>; direction: Direction; confidence: number; model?: string; latency_ms?: number; note?: string; metadata?: Record<string, unknown> }) =>
+    apiData<DecisionRecord>('/api/decision-tape/decisions', { method: 'POST', body: JSON.stringify(body) }),
+  runNightWatchDecision: (body: { snapshot_id: string; direction: Direction; thesis: string; risk_pct?: number; holding_period?: string }) =>
+    apiData<{ report: NightWatchReport; decision: DecisionRecord }>('/api/decision-tape/nightwatch', { method: 'POST', body: JSON.stringify(body) }),
+  decisionTape: () => apiData<DecisionRecord[]>('/api/decision-tape/decisions'),
+  evaluateDecisions: () => apiData<DecisionRecord[]>('/api/decision-tape/evaluate', { method: 'POST' }),
+  decisionSummary: () => apiData<DecisionTapeSummary>('/api/decision-tape/summary'),
   pulse: () => apiData<PulseEvent[]>('/api/pulse', undefined, 20_000),
   nightwatch: (body: { symbol: string; direction: Direction; thesis: string; risk_pct?: number; holding_period?: string }) =>
     apiData<NightWatchReport>('/api/nightwatch/analyze', { method: 'POST', body: JSON.stringify(body) }),

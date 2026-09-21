@@ -48,8 +48,9 @@ Set these in **Vercel Dashboard → Project → Settings → Environment Variabl
 | `AI_PROVIDER` | No | Default `groq` |
 | `QWEN_BASE_URL` | No | Default `https://api.groq.com/openai/v1` |
 | `QWEN_MODEL` | No | Default `qwen/qwen3.8-27b` |
-| `MONGODB_URI` | No | Enables shared persistence; empty = in-memory fallback |
+| `MONGODB_URI` | **Yes for production Arena** | Shared durable battle/decision history; local dev may leave empty |
 | `MONGODB_DB` | No | Default `alphaarena` |
+| `REQUIRE_PERSISTENT_STORAGE` | **Yes in production** | Set `true` so startup fails instead of silently falling back to ephemeral memory |
 | `FRONTEND_ORIGINS` | Recommended | Comma-separated allowed origins, e.g. `https://alphaarena.vercel.app` |
 | `VIBE_MCP_URL` | No | Usually unavailable on Vercel serverless; product degrades to labelled fallback |
 | `BITGET_SIGNAL_MCP_URL` | No | Default `https://datahub.noxiaohao.com/mcp` |
@@ -109,18 +110,21 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 Interactive API: `http://127.0.0.1:8000/docs`
 Diagnostics: `/api/health`, `/api/integrations/status`, `/api/budget/status`
 
-## 4. Optional MongoDB Atlas persistence
+## 4. MongoDB Atlas persistence
+
+Local development can use the in-memory fallback. A deployed Arena should not: serverless memory can disappear between requests and would break battle settlement, Decision Tape evaluation, and track-record continuity.
 
 1. Create a free Atlas cluster and database user.
-2. Set `MONGODB_URI` (and optionally `MONGODB_DB=alphaarena`) in `backend/.env` (Compose/local) or Vercel project env (live).
-3. Restart. Empty `MONGODB_URI` = in-memory fallback; the product stays functional.
+2. Set `MONGODB_URI` (and optionally `MONGODB_DB=alphaarena`).
+3. Set `REQUIRE_PERSISTENT_STORAGE=true` in production.
+4. Restart and confirm `/api/health` reports `"storage_durable": true`.
 
-Storage is abstracted in `backend/app/services/storage.py`, so no code change is needed to switch modes.
+When Mongo is active, paper-capital creation also uses a short per-player Mongo lease so separate workers cannot simultaneously reserve the same free virtual capital.
 
 ## 5. Production checklist (before judging)
 
 - [ ] `https://alphaarena.vercel.app/` loads with no console errors.
-- [ ] `/api/health` and `/api/budget/status` respond (paper-only, background LLM = 0).
+- [ ] `/api/health` reports durable storage in production; `/api/budget/status` remains paper-only with background LLM = 0.
 - [ ] Pulse shows live vs. preview labelling truthfully.
 - [ ] NightWatch → MarketTwin → Arena → Review flow rehearsed per [JUDGE_DEMO.md](JUDGE_DEMO.md).
 - [ ] Shadow Session: one settled battle shows Listed/Shadow bars, the verbatim commitment sentence, and a **Verify freeze** that returns `hash matches`.

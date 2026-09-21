@@ -192,12 +192,41 @@ class BattleCreateRequest(BaseModel):
     stated_confidence: float | None = Field(default=None, ge=0, le=100)
 
 
+
+class DecisionSnapshotRequest(BaseModel):
+    symbol: str = Field(default="rNVDA", min_length=1, max_length=16)
+
+
+DecisionLane = Literal["human", "nightwatch", "jev", "other"]
+
+class DecisionNightWatchRequest(BaseModel):
+    snapshot_id: str = Field(min_length=5, max_length=80)
+    direction: Direction
+    thesis: str = Field(min_length=8, max_length=2000)
+    risk_pct: float = Field(default=2.0, ge=0.1, le=25)
+    holding_period: str = Field(default="24H", min_length=1, max_length=16)
+
+
+
+class DecisionSubmitRequest(BaseModel):
+    snapshot_id: str = Field(min_length=5, max_length=80)
+    lane: DecisionLane
+    direction: Direction
+    confidence: float = Field(ge=0, le=100)
+    model: str | None = Field(default=None, max_length=120)
+    latency_ms: float | None = Field(default=None, ge=0, le=60_000)
+    note: str | None = Field(default=None, max_length=500)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class ShadowAttribution(BaseModel):
     listed_move_pct: float = 0.0
     shadow_move_pct: float = 0.0
     total_move_pct: float = 0.0
     kill_session: str | None = None
     kill_at: str | None = None
+    last_session: str | None = None
+    last_at: str | None = None
     kill_hit: bool | None = None
     kill_price_touched: float | None = None
     candle_count: int = 0
@@ -235,6 +264,9 @@ class BattleView(BaseModel):
     settled_at: str | None = None
     settled_price: float | None = None
     settlement_hash: str | None = None
+    settlement_source: str | None = None
+    settlement_granularity: str | None = None
+    settlement_selection: str | None = None
     stated_confidence: float | None = None
     status: Literal["live", "settled"]
     source: str = "bitget"

@@ -98,7 +98,7 @@ def kill_check(
 ) -> dict[str, Any] | None:
     """First candle that touches the kill level, tagged with its session.
 
-    LONG kill: candle close <= kill. SHORT kill: close >= kill.
+    LONG kill: candle low <= kill. SHORT kill: candle high >= kill.
     WAIT or missing kill: None. Pure observation — "occurred in", never
     "predicted".
     """
@@ -109,14 +109,26 @@ def kill_check(
         return None
     for candle in tag_candles(candles):
         try:
-            price = float(candle.get("close", candle.get("price", 0)) or 0)
+            close = float(candle.get("close", candle.get("price", 0)) or 0)
+            low = float(candle.get("low", close) or close)
+            high = float(candle.get("high", close) or close)
         except (TypeError, ValueError):
             continue
-        if price <= 0:
+        if close <= 0 or low <= 0 or high <= 0:
             continue
-        hit = price <= float(kill_price) if upper == "LONG" else price >= float(kill_price)
+        if upper == "LONG":
+            hit = low <= float(kill_price)
+            touched = low
+        else:
+            hit = high >= float(kill_price)
+            touched = high
         if hit:
-            return {"kill_hit": True, "kill_at": str(candle.get("iso")), "kill_session": str(candle.get("session")), "kill_price_touched": price}
+            return {
+                "kill_hit": True,
+                "kill_at": str(candle.get("iso")),
+                "kill_session": str(candle.get("session")),
+                "kill_price_touched": touched,
+            }
     return {"kill_hit": False, "kill_at": None, "kill_session": None, "kill_price_touched": None}
 
 
@@ -138,8 +150,8 @@ def attribute_moves(
     prev = float(entry_price) if entry_price and entry_price > 0 else 0.0
     direction = -1.0 if str(side).upper() == "SHORT" else 1.0
     last_listed_price: float | None = None
-    kill_iso: str | None = None
-    kill_session: str | None = None
+    last_iso: str | None = None
+    last_session: str | None = None
 
     tagged = tag_candles(candles)
     for candle in tagged:
@@ -157,16 +169,18 @@ def attribute_moves(
         else:
             shadow_move += step_pct
         prev = price
-        kill_iso = str(candle.get("iso"))
-        kill_session = str(candle.get("session"))
+        last_iso = str(candle.get("iso"))
+        last_session = str(candle.get("session"))
 
     total = listed_move + shadow_move
     return {
         "listed_move_pct": round(listed_move, 4),
         "shadow_move_pct": round(shadow_move, 4),
         "total_move_pct": round(total, 4),
-        "kill_session": kill_session,
-        "kill_at": kill_iso,
+        "kill_session": None,
+        "kill_at": None,
+        "last_session": last_session,
+        "last_at": last_iso,
         "candle_count": len(tagged),
         "granularity": granularity_label,
         "is_estimate": granularity_label.strip().upper() != "1M",

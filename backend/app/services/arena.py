@@ -18,7 +18,43 @@ class ArenaError(RuntimeError):
 
 
 def battle_canonical_payload(battle: dict[str, Any]) -> str:
-    """Canonical string for tamper-evident settlement hashing."""
+    """Canonical v3 freeze for the thesis, risk contract and observed outcome."""
+    payload = {
+        "id": str(battle.get("id")),
+        "player_id": str(battle.get("player_id") or "guest_default"),
+        "symbol": str(battle.get("symbol")),
+        "thesis": str(battle.get("thesis") or ""),
+        "wrong_sentence": str(battle.get("wrong_sentence") or ""),
+        "user_side": str(battle.get("user_side")),
+        "ai_side": str(battle.get("ai_side")),
+        "opponent": str(battle.get("opponent") or ""),
+        "stake": round(float(battle.get("stake") or 0), 2),
+        "quantity": round(float(battle.get("quantity") or 0), 6),
+        "risk_pct": round(float(battle.get("risk_pct") or 0), 6),
+        "kill_price": round(float(battle.get("kill_price") or 0), 6),
+        "stated_confidence": (
+            None if battle.get("stated_confidence") is None else round(float(battle.get("stated_confidence")), 4)
+        ),
+        "entry_price": float(battle.get("entry_price") or 0),
+        "created_at": str(battle.get("created_at")),
+        "expires_at": str(battle.get("expires_at")),
+        "settled_price": float(battle.get("settled_price") or 0),
+        "settled_at": str(battle.get("settled_at")),
+        "settlement_source": str(battle.get("settlement_source") or ""),
+        "settlement_granularity": str(battle.get("settlement_granularity") or ""),
+        "settlement_selection": str(battle.get("settlement_selection") or ""),
+        "shadow": battle.get("shadow"),
+        "flatten_before_dark": battle.get("flatten_before_dark"),
+    }
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def battle_hash(battle: dict[str, Any]) -> str:
+    return hashlib.sha256(battle_canonical_payload(battle).encode("utf-8")).hexdigest()
+
+
+def _previous_battle_hash(battle: dict[str, Any], *, include_wrong_sentence: bool) -> str:
+    """Compatibility hash for battles frozen before the v3 thesis freeze."""
     payload = {
         "id": str(battle.get("id")),
         "symbol": str(battle.get("symbol")),
@@ -29,15 +65,11 @@ def battle_canonical_payload(battle: dict[str, Any]) -> str:
         "settled_price": float(battle.get("settled_price") or 0),
         "created_at": str(battle.get("created_at")),
         "settled_at": str(battle.get("settled_at")),
-        # Commitment sentence is part of the freeze — same object, no
-        # separate storage path. Empty string default keeps old battles verifiable.
-        "wrong_sentence": str(battle.get("wrong_sentence") or ""),
     }
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
-
-
-def battle_hash(battle: dict[str, Any]) -> str:
-    return hashlib.sha256(battle_canonical_payload(battle).encode("utf-8")).hexdigest()
+    if include_wrong_sentence:
+        payload["wrong_sentence"] = str(battle.get("wrong_sentence") or "")
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 def verify_battle_hash(battle: dict[str, Any]) -> bool:
@@ -45,23 +77,12 @@ def verify_battle_hash(battle: dict[str, Any]) -> bool:
     if not stored or battle.get("status") != "settled":
         return False
     try:
-        if str(stored) == battle_hash(battle):
-            return True
-        # Legacy battles hashed before wrong_sentence existed: recompute
-        # the old canonical form exactly (stake as round(float, 2) float,
-        # no wrong_sentence key at all). Stored stakes are floats so this matches.
-        legacy_payload = {
-            "id": str(battle.get("id")),
-            "symbol": str(battle.get("symbol")),
-            "user_side": str(battle.get("user_side")),
-            "ai_side": str(battle.get("ai_side")),
-            "stake": round(float(battle.get("stake") or 0), 2),
-            "entry_price": float(battle.get("entry_price") or 0),
-            "settled_price": float(battle.get("settled_price") or 0),
-            "created_at": str(battle.get("created_at")),
-            "settled_at": str(battle.get("settled_at")),
+        candidate = str(stored)
+        return candidate in {
+            battle_hash(battle),
+            _previous_battle_hash(battle, include_wrong_sentence=True),
+            _previous_battle_hash(battle, include_wrong_sentence=False),
         }
-        return str(stored) == json.dumps(legacy_payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
     except Exception:
         return False
 
@@ -80,12 +101,13 @@ def _parse_time(value: Any) -> datetime:
 
 class ArenaService:
     def __init__(self) -> None:
-        # Prevent two simultaneous paper-battle requests from both seeing the
-        # same free capital and oversubscribing the virtual portfolio.
-        self._create_lock = asyncio.Lock()
+        # Capital reservation is serialized by AlphaStore.player_lock. With
+        # Mongo configured this is also a short distributed lease, so separate
+        # serverless workers cannot both spend the same free paper capital.
+        self._create_lock = asyncio.Lock()  # legacy local fallback; store lock is authoritative
 
     async def create_battle(self, request: Any, player_id: str = "guest_default") -> dict[str, Any]:
-        async with self._create_lock:
+        async with store.player_lock(player_id):
             if request.user_side != "WAIT":
                 portfolio = await self.portfolio(player_id)
                 free = float(portfolio["free_capital"])
@@ -147,6 +169,9 @@ class ArenaService:
                 "settled_at": None,
                 "settled_price": None,
                 "settlement_hash": None,
+                "settlement_source": None,
+                "settlement_granularity": None,
+                "settlement_selection": None,
                 "status": "live",
                 "source": "bitget",
             }
@@ -154,15 +179,29 @@ class ArenaService:
             return battle
 
     async def _attach_shadow(self, battle: dict[str, Any]) -> dict[str, Any]:
-        """Attach Listed/Shadow attribution from real Bitget candles.
-
-        Best-effort: never blocks settlement. On candle failure the
-        battle keeps shadow=None and the UI hides the card honestly.
-        """
+        """Attach Listed/Shadow attribution only for this battle's market window."""
         try:
             from app.services.shadow import attribute_moves, flatten_before_dark, kill_check
 
-            candles = await bitget_market.get_candles(str(battle.get("symbol")), interval="1H", limit=200)
+            start_dt = _parse_time(battle.get("created_at"))
+            end_value = battle.get("settled_at") if battle.get("status") == "settled" else datetime.now(timezone.utc).isoformat()
+            end_dt = _parse_time(end_value)
+            start_ms = int(start_dt.timestamp() * 1000)
+            end_ms = int(end_dt.timestamp() * 1000)
+            candles = await bitget_market.get_candles(
+                str(battle.get("symbol")),
+                interval="1H",
+                limit=200,
+                start_time_ms=start_ms,
+                end_time_ms=end_ms,
+            )
+            # Bitget can return a boundary candle outside the requested range;
+            # clip again locally so pre-entry/post-settlement movement can never
+            # leak into the attribution.
+            candles = [
+                candle for candle in candles
+                if start_ms <= int(candle.get("ts") or 0) <= end_ms
+            ]
             attribution = attribute_moves(
                 float(battle.get("entry_price") or 0),
                 str(battle.get("user_side") or "LONG"),
@@ -175,15 +214,11 @@ class ArenaService:
                 float(battle.get("kill_price") or 0) or None,
                 candles,
             )
-            if kill and kill.get("kill_hit"):
-                # The kill level was actually touched: the kill candle's
-                # session/timestamp replace the last-candle defaults.
-                attribution["kill_hit"] = True
+            if kill:
+                attribution["kill_hit"] = bool(kill.get("kill_hit"))
                 attribution["kill_at"] = kill.get("kill_at")
                 attribution["kill_session"] = kill.get("kill_session")
                 attribution["kill_price_touched"] = kill.get("kill_price_touched")
-            elif kill:
-                attribution["kill_hit"] = False
             battle["shadow"] = attribution
             flat = None
             if battle.get("status") == "settled" and battle.get("settled_price") is not None:
@@ -204,19 +239,20 @@ class ArenaService:
             battle["current_price"] = settled
             battle["user_pnl_pct"] = _pnl(str(battle["user_side"]), float(battle["entry_price"]), settled)
             battle["ai_pnl_pct"] = _pnl(str(battle["ai_side"]), float(battle["entry_price"]), settled)
-            # Backfill tamper-evident hash for battles settled before hashing existed.
+            if not battle.get("shadow"):
+                battle = await self._attach_shadow(battle)
+            # Backfill only after optional Shadow/flatten attribution so a new
+            # freeze commits to the full settled record. Older stored hashes
+            # remain verifiable through the compatibility paths above.
             if not battle.get("settlement_hash"):
                 try:
                     battle["settlement_hash"] = battle_hash(battle)
-                    await store.save("battles", str(battle["id"]), battle)
                 except Exception:
                     pass
-            if not battle.get("shadow"):
-                battle = await self._attach_shadow(battle)
-                try:
-                    await store.save("battles", str(battle["id"]), battle)
-                except Exception:
-                    pass
+            try:
+                await store.save("battles", str(battle["id"]), battle)
+            except Exception:
+                pass
             return battle
 
         current = price_by_symbol.get(
@@ -230,9 +266,31 @@ class ArenaService:
         battle["ai_pnl_pct"] = _pnl(str(battle["ai_side"]), float(battle["entry_price"]), current)
 
         if datetime.now(timezone.utc) >= _parse_time(battle["expires_at"]):
+            expiry = _parse_time(battle["expires_at"])
+            try:
+                observed = await bitget_market.get_price_near(
+                    str(battle["symbol"]),
+                    int(expiry.timestamp() * 1000),
+                )
+            except Exception:
+                # Never turn a 24H battle into a later-horizon battle merely
+                # because the historical candle is temporarily unavailable.
+                await store.save("battles", str(battle["id"]), battle)
+                return battle
+            settled = float(observed["price"])
+            observed_at = datetime.fromtimestamp(
+                int(observed["timestamp"]) / 1000,
+                tz=timezone.utc,
+            )
             battle["status"] = "settled"
-            battle["settled_price"] = current
-            battle["settled_at"] = datetime.now(timezone.utc).isoformat()
+            battle["settled_price"] = settled
+            battle["settled_at"] = observed_at.isoformat()
+            battle["settlement_source"] = str(observed.get("source") or "bitget-candle")
+            battle["settlement_granularity"] = str(observed.get("granularity") or "unknown")
+            battle["settlement_selection"] = str(observed.get("selection") or "unknown")
+            battle["current_price"] = settled
+            battle["user_pnl_pct"] = _pnl(str(battle["user_side"]), float(battle["entry_price"]), settled)
+            battle["ai_pnl_pct"] = _pnl(str(battle["ai_side"]), float(battle["entry_price"]), settled)
             battle = await self._attach_shadow(battle)
             try:
                 battle["settlement_hash"] = battle_hash(battle)
@@ -280,12 +338,19 @@ class ArenaService:
             for b in battles
             if b["status"] == "live" and b["user_side"] != "WAIT"
         )
-        pnl_dollars = sum(
+        realized_pnl = sum(
             float(b["stake"]) * float(b["user_pnl_pct"]) / 100
             for b in battles
-            if b["user_side"] != "WAIT"
+            if b.get("status") == "settled" and b.get("user_side") != "WAIT"
         )
-        net = starting + pnl_dollars
+        unrealized_pnl = sum(
+            float(b["stake"]) * float(b["user_pnl_pct"]) / 100
+            for b in battles
+            if b.get("status") == "live" and b.get("user_side") != "WAIT"
+        )
+        realized_balance = starting + realized_pnl
+        net = realized_balance + unrealized_pnl
+        free_capital = max(0.0, realized_balance - deployed)
         settled = [b for b in battles if b.get("status") == "settled" and b.get("user_side") != "WAIT"]
         wins = sum(1 for b in settled if float(b.get("user_pnl_pct") or 0) > 0)
         gross_profit = sum(
@@ -322,7 +387,7 @@ class ArenaService:
         return {
             "starting_capital": round(starting, 2),
             "net_value": round(net, 2),
-            "free_capital": round(max(0.0, starting - deployed), 2),
+            "free_capital": round(free_capital, 2),
             "deployed_capital": round(deployed, 2),
             "return_pct": round((net / starting - 1) * 100, 4) if starting else 0.0,
             "open_battles": sum(1 for b in battles if b["status"] == "live"),

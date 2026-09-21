@@ -55,7 +55,8 @@ It turns a market idea into a falsifiable thesis, challenges it with opposing ev
 1. **Pulse — Watch.** Open the live market feed and choose a Reality asset worth investigating.
 2. **NightWatch — Challenge.** State a direction and thesis. AlphaArena builds the strongest support and objection, shows evidence quality, stress scenarios, and explicit invalidation conditions.
 3. **MarketTwin — Simulate.** Change one market assumption — e.g. “Nasdaq falls 5%” — and inspect transparent impact ranges. Historical beta is used only when Vibe-Trading returns enough aligned observations; otherwise the UI says a transparent AlphaArena prior was used.
-5. **Arena — Test.** Commit the thesis to a paper battle at the live Bitget Reality market price. Enter the **Shadow Session commitment** — *"If I am wrong, it will be because…"* — which is locked, hashed into the freeze, and read back verbatim. Set a kill level. The battle is settled from later observed market prices and frozen so the result cannot be rewritten.
+4. **Arena — Test.** Commit the thesis to a paper battle at the live Bitget Reality market price. Enter the **Shadow Session commitment** — *"If I am wrong, it will be because…"* — which is locked, hashed into the freeze, and read back verbatim. Set a kill level. The battle is settled from later observed market prices and frozen so the result cannot be rewritten.
+5. **Decision Tape — measure the decision-maker.** Freeze one Bitget snapshot, record Human / NightWatch / Jev / deterministic-baseline decisions against the same state, then score matured decisions at 5m / 30m / 1h / 24h. Jev is a measurable lane, not an oracle.
 6. **Shadow Session — the tape that never sleeps.** Because Bitget Reality trades 24/7, every battle splits its move into **Listed** (NYSE hours) vs **Shadow** (nights, weekends, holidays) from real candles. You see exactly *where* the move occurred — including a kill at 03:11 UTC on a Saturday — with honest ~1h candle-bucket timestamps.
 7. **Morgue — dead theses, with receipts.** Settled battles only, showing the verbatim sentence, the session badge, survival/kill status, and the frozen hash. Verify the freeze with one click: **`hash matches`**.
 8. **Review — Learn.** After settlement, compare the original thesis with the outcome and create a falsifiable rule for the next paper battle.
@@ -88,6 +89,7 @@ AlphaArena is deliberately **not** another “AI says BUY” dashboard. It separ
 - **Deterministic AlphaArena code** calculates market metrics, stress impacts, uncertainty, and paper PnL.
 - **Qwen 3.8 27B** (via Groq, free hackathon path) is the optional high-reasoning synthesis layer. It may explain results but **cannot overwrite deterministic numbers or invent missing evidence**.
 - **Arena** uses a fixed paper balance. There is no wallet connection, deposit, withdrawal, or exchange order endpoint anywhere in the product.
+- **Decision Tape** gives Human / NightWatch / Jev / deterministic baseline the same frozen market snapshot and measures later outcomes instead of trusting confident prose. See [docs/DECISION_TAPE.md](docs/DECISION_TAPE.md).
 - **Shadow Session** is the differentiator that only makes sense because Bitget Reality is **24/7** while the real NYSE is not. Splitting every battle move into **Listed** vs **Shadow** turns the after-hours gap into *live, tradable tape* — and the settlement card reads your own commitment sentence back to you verbatim.
 
 ---
@@ -138,7 +140,8 @@ See [docs/SHADOW_SESSION.md](docs/SHADOW_SESSION.md).
 | 📡 **Pulse** | Live Reality market feed, movers, short-window risk context, background watcher with zero LLM calls |
 | ⚖️ **NightWatch** | Adversarial thesis analysis: strongest support vs. strongest objection, evidence quality, deterministic stress cases, invalidation conditions |
 | 🧪 **MarketTwin (Lab)** | Single-assumption what-if engine with transparent impact ranges and labelled calibration source (measured Vibe beta vs. AlphaArena prior) |
-| 🏟️ **Arena** | Paper battles at observed live prices, LONG / SHORT / WAIT, serialized capital checks, immutable settlement |
+| 🏟️ **Arena** | Paper battles at observed live prices, LONG / SHORT / WAIT, cross-worker capital serialization, expiry-targeted immutable settlement |
+| 🧭 **Decision Tape** | Same-snapshot Human / NightWatch / Jev / deterministic decisions with 5m/30m/1h/24h outcome scoring, latency, hit rate and Brier calibration ([docs/DECISION_TAPE.md](docs/DECISION_TAPE.md)) |
 | 🌙 **Shadow Session** | Listed vs Shadow move attribution from real candles, "If I am wrong…" commitment hashed into the freeze and read back verbatim, kill/survive receipt, flatten-before-dark counterfactual ([docs/SHADOW_SESSION.md](docs/SHADOW_SESSION.md)) |
 | 💀 **Thesis Morgue** | Settled dead theses only — verbatim sentence, session badge, kill/survive status, frozen hash, one-click **Verify freeze** |
 | 📊 **Portfolio & Ranks** | Virtual exposure tracking and settled-battle leaderboard (one observation, never “proof of edge”) |
@@ -160,7 +163,7 @@ See [docs/SHADOW_SESSION.md](docs/SHADOW_SESSION.md).
 | Research | Vibe-Trading MCP sidecar (`vibe-trading-ai==0.1.15`, research-only) |
 | Macro context | Bitget Signal MCP (cached, time-bounded) |
 | Reasoning (optional) | Qwen 3.8 27B via Groq, user-triggered, budget-fused |
-| Persistence (optional) | MongoDB Atlas, with in-memory fallback |
+| Persistence | MongoDB Atlas in production; in-memory fallback for local/dev |
 | Testing | Playwright (7-project matrix), pytest, ruff, `tsc`, Vite build |
 | Deployment | Vercel (frontend + serverless API, see `vercel.json` / `api/index.py`), Docker Compose for backend + Vibe sidecar |
 
@@ -169,12 +172,12 @@ See [docs/SHADOW_SESSION.md](docs/SHADOW_SESSION.md).
 ## How it works
 
 ```text
-React + Vite UI  (Pulse · NightWatch · MarketTwin · Arena · Shadow Session · Morgue · Review)
+React + Vite UI  (Pulse · NightWatch · MarketTwin · Arena · Decision Tape · Shadow · Morgue · Review)
        │
        ▼ JSON / HTTPS
 FastAPI application
   │       │        │        │
-  │       │        │        └── optional MongoDB persistence
+  │       │        │        └── MongoDB persistence (required for production Arena)
   │       │        └─────────── Qwen 3.8 high reasoning via Groq (user-triggered, budget fused)
   │       └──────────────────── Bitget Signal MCP context
   ├──────────────────────────── Vibe-Trading MCP sidecar (research only)

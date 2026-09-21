@@ -34,8 +34,8 @@ export function ShadowBars({ battle, dark = false }: { battle: BattleView; dark?
     : battle.status === 'settled'
       ? 'Thesis survived — kill level was not touched on the observed path.'
       : null;
-  const moveText = !killHit && shadow.kill_at
-    ? `Move so far occurred in ${shadow.kill_session === 'listed' ? 'Listed' : 'Shadow'} session · ${shadow.is_estimate ? '~' : ''}${new Date(shadow.kill_at).toLocaleString('en-US', { timeZone: 'UTC' })} UTC`
+  const moveText = !killHit && shadow.last_at
+    ? `Move so far ended in ${shadow.last_session === 'listed' ? 'Listed' : 'Shadow'} session · ${shadow.is_estimate ? '~' : ''}${new Date(shadow.last_at).toLocaleString('en-US', { timeZone: 'UTC' })} UTC`
     : null;
   return (
     <section

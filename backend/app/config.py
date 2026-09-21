@@ -34,9 +34,19 @@ class Settings(BaseSettings):
     vibe_cache_seconds: int = 900
     mcp_timeout_seconds: float = 20.0
 
+    # Optional Jev bridge. TypeSafe/Jev access is early-access, so AlphaArena
+    # talks to a user-controlled adapter with a tiny stable JSON contract rather
+    # than hard-coding an unofficial vendor request shape.
+    jev_adapter_url: str = ""
+    jev_adapter_token: str = ""
+    jev_adapter_timeout_seconds: float = 2.0
+    decision_tape_interval_seconds: float = 5.0
+    decision_tape_symbols: str = "rNVDA"
+
     # Optional persistence. The Arena remains paper-only regardless of storage.
     mongodb_uri: str = ""
     mongodb_db: str = "alphaarena"
+    require_persistent_storage: bool = False
     arena_starting_capital: float = 100_000.0
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

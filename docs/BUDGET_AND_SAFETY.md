@@ -47,7 +47,7 @@ For a non-WAIT paper position:
 requested virtual stake <= current free virtual capital
 ```
 
-Open stakes reduce free capital. PnL changes the marked net value, but settlement freezes the observed settlement price and result. Re-reading an already settled battle cannot rewrite it with a newer market price.
+Open stakes reduce free capital. Settled gains and losses change the realized paper balance and therefore future free capital; live PnL changes marked net value without pretending a realized loss disappeared. Settlement is frozen against the configured expiry timestamp, so re-reading an already settled battle cannot rewrite it with a newer market price.
 
 A unit test explicitly races two `$60,000` battle requests against a `$100,000` portfolio and requires exactly one to succeed.
 

@@ -93,19 +93,36 @@ class BitgetMarketClient:
             pass
         return f"r{ticker}USDT"
 
-    async def get_candles(self, display_symbol: str, interval: str = "1H", limit: int = 200) -> list[dict[str, Any]]:
-        """Raw Reality candles for honest session attribution.
+    async def get_candles(
+        self,
+        display_symbol: str,
+        interval: str = "1H",
+        limit: int = 200,
+        *,
+        start_time_ms: int | None = None,
+        end_time_ms: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Raw Reality OHLC candles sorted oldest-first.
 
-        Returns [{"ts": ms, "close": price}] sorted oldest-first.
-        Never synthesises candles — empty list means unavailable.
+        start_time_ms / end_time_ms are forwarded to Bitget so callers can
+        query the market window that actually belongs to a paper battle.
+        Never synthesises candles — an empty list means unavailable.
         """
         exchange_symbol = await self._exchange_symbol(display_symbol)
         safe_interval = interval if interval in {"1m", "5m", "15m", "30m", "1H", "4H", "1D"} else "1H"
         safe_limit = max(1, min(1000, int(limit)))
-        payload = await self._get(
-            "/api/v3/market/candles",
-            {"category": "SPOT", "symbol": exchange_symbol, "interval": safe_interval, "limit": str(safe_limit), "type": "market"},
-        )
+        params = {
+            "category": "SPOT",
+            "symbol": exchange_symbol,
+            "interval": safe_interval,
+            "limit": str(safe_limit),
+            "type": "market",
+        }
+        if start_time_ms is not None:
+            params["startTime"] = str(max(0, int(start_time_ms)))
+        if end_time_ms is not None:
+            params["endTime"] = str(max(0, int(end_time_ms)))
+        payload = await self._get("/api/v3/market/candles", params)
         rows = payload.get("data") or []
         candles: list[dict[str, Any]] = []
         for row in rows:
@@ -113,14 +130,63 @@ class BitgetMarketClient:
                 continue
             try:
                 ts = int(row[0])
+                open_price = _to_float(row[1])
+                high = _to_float(row[2])
+                low = _to_float(row[3])
                 close = _to_float(row[4])
             except (TypeError, ValueError):
                 continue
-            if ts > 0 and close > 0:
-                candles.append({"ts": ts, "close": close})
+            if ts > 0 and min(open_price, high, low, close) > 0:
+                candles.append({
+                    "ts": ts,
+                    "open": open_price,
+                    "high": high,
+                    "low": low,
+                    "close": close,
+                })
         candles.sort(key=lambda row: int(row["ts"]))
         return candles
 
+    async def get_price_near(self, display_symbol: str, when_ms: int) -> dict[str, Any]:
+        """Return the closest observed candle to a requested settlement time."""
+        pad_ms = 30 * 60 * 1000
+        candles = await self.get_candles(
+            display_symbol,
+            interval="1m",
+            limit=1000,
+            start_time_ms=max(0, int(when_ms) - pad_ms),
+            end_time_ms=int(when_ms) + pad_ms,
+        )
+        granularity = "1m"
+        if not candles:
+            day_ms = 24 * 60 * 60 * 1000
+            candles = await self.get_candles(
+                display_symbol,
+                interval="1H",
+                limit=72,
+                start_time_ms=max(0, int(when_ms) - day_ms),
+                end_time_ms=int(when_ms) + day_ms,
+            )
+            granularity = "1H"
+        if not candles:
+            raise BitgetError(f"No candle available near requested settlement time for {display_symbol}")
+        at_or_after = [row for row in candles if int(row["ts"]) >= int(when_ms)]
+        if at_or_after:
+            candle = min(at_or_after, key=lambda row: int(row["ts"]))
+            selection = "at_or_after_expiry"
+        else:
+            # Historical APIs can occasionally omit the next bucket. Using the
+            # latest prior observation is explicit and auditable; we never use
+            # an arbitrary current ticker as a substitute for expiry.
+            candle = max(candles, key=lambda row: int(row["ts"]))
+            selection = "latest_before_expiry"
+        return {
+            "price": float(candle["close"]),
+            "timestamp": int(candle["ts"]),
+            "source": "bitget-candle",
+            "granularity": granularity,
+            "selection": selection,
+        }
     async def get_asset(self, display_symbol: str) -> dict[str, Any]:
         if display_symbol not in DISPLAY_TICKERS:
             raise BitgetError(f"Unsupported AlphaArena symbol: {display_symbol}")

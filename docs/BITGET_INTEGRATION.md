@@ -65,7 +65,7 @@ Bitget's Reality guide states that rToken candlesticks use the `market` candle t
 
 ### Candles for Shadow Session
 
-`backend/app/services/bitget.py → get_candles()` reads Reality candles (`type=market`) and returns them as `[{"ts": ms, "close": price}]`. `backend/app/services/shadow.py` tags each candle `listed` or `shadow` and splits the battle's entry→now move into the two buckets. The default interval is `1H`, so the UI labels timestamps as **candle-bucket estimates** (`~03:11 UTC`, never a false exact fill). If a `1m` feed becomes available, the caller switches the interval and the estimate label drops automatically.
+`backend/app/services/bitget.py → get_candles()` reads Reality candles (`type=market`) as timestamped OHLC records. `backend/app/services/shadow.py` tags each candle `listed` or `shadow` and only attributes candles inside the battle entry→settlement window. Kill checks use candle lows for LONG and highs for SHORT, so an intrabar touch is not missed merely because the candle later closes back inside the level. The default Shadow interval remains `1H`, so the UI labels those timestamps as candle-bucket estimates.
 
 ## What AlphaArena deliberately does not use
 
@@ -104,7 +104,7 @@ For paper battle creation, a market-data failure happens before the battle is pe
 
 ## Market timestamps and settlement
 
-Every market asset includes Bitget's timestamp. Arena records the observed entry price when a battle is created. While a battle is live, the backend refreshes its mark from Bitget where possible. When the configured horizon expires, the next successful refresh freezes:
+Every market asset includes Bitget's timestamp. Arena records the observed entry price when a battle is created. While a battle is live, the backend refreshes its mark from Bitget where possible. When the configured horizon expires, AlphaArena queries Bitget candles around the original expiry timestamp and freezes the closest observed candle price. A late page refresh therefore cannot silently turn a 24H battle into a longer-horizon battle. The freeze records:
 
 - `settled_price`
 - `settled_at`
