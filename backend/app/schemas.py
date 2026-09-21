@@ -199,6 +199,14 @@ class DecisionSnapshotRequest(BaseModel):
 
 DecisionLane = Literal["human", "nightwatch", "jev", "other"]
 
+class DecisionNightWatchRequest(BaseModel):
+    snapshot_id: str = Field(min_length=5, max_length=80)
+    direction: Direction
+    thesis: str = Field(min_length=8, max_length=2000)
+    risk_pct: float = Field(default=2.0, ge=0.1, le=25)
+    holding_period: str = Field(default="24H", min_length=1, max_length=16)
+
+
 
 class DecisionSubmitRequest(BaseModel):
     snapshot_id: str = Field(min_length=5, max_length=80)
