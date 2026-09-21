@@ -97,7 +97,7 @@ export type BattleView = {
   user_side: Direction; ai_side: Direction; opponent: string;
   stake: number; quantity?: number | null; entry_price: number; current_price: number; user_pnl_pct: number; ai_pnl_pct: number;
   created_at: string; expires_at: string; settled_at?: string | null; settled_price?: number | null;
-  settlement_hash?: string | null; settlement_source?: string | null; settlement_granularity?: string | null; stated_confidence?: number | null;
+  settlement_hash?: string | null; settlement_source?: string | null; settlement_granularity?: string | null; settlement_selection?: string | null; stated_confidence?: number | null;
   status: 'live'|'settled'; source: string;
   shadow?: ShadowAttribution | null; flatten_before_dark?: FlattenBeforeDark | null;
 };
