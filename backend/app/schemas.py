@@ -217,6 +217,8 @@ class ShadowAttribution(BaseModel):
     total_move_pct: float = 0.0
     kill_session: str | None = None
     kill_at: str | None = None
+    last_session: str | None = None
+    last_at: str | None = None
     kill_hit: bool | None = None
     kill_price_touched: float | None = None
     candle_count: int = 0
