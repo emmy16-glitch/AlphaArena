@@ -1,12 +1,12 @@
 # Deployment
 
-> **Live demo:** https://alphaarena.vercel.app
+> **Live demo:** https://alphaarena-sand.vercel.app
 
 This runbook covers the three supported deployment shapes: Vercel (live demo), Docker Compose (full research stack), and direct Uvicorn (backend iteration). It also covers the optional MongoDB Atlas persistence.
 
 ## 1. Vercel (live demo)
 
-**URL:** https://alphaarena.vercel.app
+**URL:** https://alphaarena-sand.vercel.app
 
 ### How it is wired
 
@@ -26,7 +26,7 @@ Configuration lives in [`vercel.json`](../vercel.json). The frontend uses hash/h
 ```bash
 # From the repository root (Vercel CLI must be logged in: `vercel login`)
 vercel            # preview deployment
-vercel --prod     # promote to production (https://alphaarena.vercel.app)
+vercel --prod     # promote to production (https://alphaarena-sand.vercel.app)
 
 # Non-interactive alternative (CI): create a token in Vercel Dashboard →
 # Settings → Tokens, then
@@ -51,7 +51,7 @@ Set these in **Vercel Dashboard → Project → Settings → Environment Variabl
 | `MONGODB_URI` | **Yes for production Arena** | Shared durable battle/decision history; local dev may leave empty |
 | `MONGODB_DB` | No | Default `alphaarena` |
 | `REQUIRE_PERSISTENT_STORAGE` | **Yes in production** | Set `true` so startup fails instead of silently falling back to ephemeral memory |
-| `FRONTEND_ORIGINS` | Recommended | Comma-separated allowed origins, e.g. `https://alphaarena.vercel.app` |
+| `FRONTEND_ORIGINS` | Recommended | Comma-separated allowed origins, e.g. `https://alphaarena-sand.vercel.app` |
 | `VIBE_MCP_URL` | No | Usually unavailable on Vercel serverless; product degrades to labelled fallback |
 | `BITGET_SIGNAL_MCP_URL` | No | Default `https://datahub.noxiaohao.com/mcp` |
 
@@ -60,13 +60,13 @@ Set these in **Vercel Dashboard → Project → Settings → Environment Variabl
 ### Smoke-test the live build
 
 ```text
-https://alphaarena.vercel.app/                 # landing → enter product
-https://alphaarena.vercel.app/api/health       # {"status": ...}
-https://alphaarena.vercel.app/api/budget/status
-https://alphaarena.vercel.app/api/integrations/status
-https://alphaarena.vercel.app/api/market/assets
-https://alphaarena.vercel.app/api/session/now  # {"session": "listed"|"shadow", ...} (Shadow Session)
-https://alphaarena.vercel.app/#/morgue         # Thesis Morgue (settled dead theses)
+https://alphaarena-sand.vercel.app/                 # landing → enter product
+https://alphaarena-sand.vercel.app/api/health       # {"status": ...}
+https://alphaarena-sand.vercel.app/api/budget/status
+https://alphaarena-sand.vercel.app/api/integrations/status
+https://alphaarena-sand.vercel.app/api/market/assets
+https://alphaarena-sand.vercel.app/api/session/now  # {"session": "listed"|"shadow", ...} (Shadow Session)
+https://alphaarena-sand.vercel.app/#/morgue         # Thesis Morgue (settled dead theses)
 ```
 
 Shadow Session adds **no new environment variables** — it reuses the existing Bitget market feed and candle endpoint, the same settlement system, and the same `settlement_hash` freeze.
@@ -123,7 +123,7 @@ When Mongo is active, paper-capital creation also uses a short per-player Mongo 
 
 ## 5. Production checklist (before judging)
 
-- [ ] `https://alphaarena.vercel.app/` loads with no console errors.
+- [ ] `https://alphaarena-sand.vercel.app/` loads with no console errors.
 - [ ] `/api/health` reports durable storage in production; `/api/budget/status` remains paper-only with background LLM = 0.
 - [ ] Pulse shows live vs. preview labelling truthfully.
 - [ ] NightWatch → MarketTwin → Arena → Review flow rehearsed per [JUDGE_DEMO.md](JUDGE_DEMO.md).
