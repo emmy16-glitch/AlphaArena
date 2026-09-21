@@ -192,6 +192,25 @@ class BattleCreateRequest(BaseModel):
     stated_confidence: float | None = Field(default=None, ge=0, le=100)
 
 
+
+class DecisionSnapshotRequest(BaseModel):
+    symbol: str = Field(default="rNVDA", min_length=1, max_length=16)
+
+
+DecisionLane = Literal["human", "nightwatch", "jev", "other"]
+
+
+class DecisionSubmitRequest(BaseModel):
+    snapshot_id: str = Field(min_length=5, max_length=80)
+    lane: DecisionLane
+    direction: Direction
+    confidence: float = Field(ge=0, le=100)
+    model: str | None = Field(default=None, max_length=120)
+    latency_ms: float | None = Field(default=None, ge=0, le=60_000)
+    note: str | None = Field(default=None, max_length=500)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class ShadowAttribution(BaseModel):
     listed_move_pct: float = 0.0
     shadow_move_pct: float = 0.0
