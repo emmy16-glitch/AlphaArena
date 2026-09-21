@@ -29,6 +29,8 @@ from app.services.watcher import pulse_watcher
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if settings.require_persistent_storage and not store.durable:
+        raise RuntimeError("Persistent storage is required but MongoDB is unavailable")
     await pulse_watcher.start()
     await signal_warmer.start()
     try:
@@ -135,6 +137,7 @@ async def health() -> dict[str, object]:
         "service": "alphaarena-api",
         "version": "0.5.0",
         "storage": store.mode,
+        "storage_durable": store.durable,
         "watcher": pulse_watcher.status,
         "signal_warmer": signal_warmer.status,
     }
@@ -190,7 +193,7 @@ async def integration_diagnostics() -> dict[str, object]:
             "vibeTrading": vibe_result,
             "bitgetSignal": signal_result,
             "qwen": {**qwen.diagnostics(), "budget": await qwen_budget.status()},
-            "storage": {"mode": store.mode},
+            "storage": {"mode": store.mode, "durable": store.durable, "required": settings.require_persistent_storage},
             "watcher": pulse_watcher.status,
             "signal_warmer": signal_warmer.status,
         }
