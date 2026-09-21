@@ -42,6 +42,8 @@ def battle_canonical_payload(battle: dict[str, Any]) -> str:
         "settled_at": str(battle.get("settled_at")),
         "settlement_source": str(battle.get("settlement_source") or ""),
         "settlement_granularity": str(battle.get("settlement_granularity") or ""),
+        "shadow": battle.get("shadow"),
+        "flatten_before_dark": battle.get("flatten_before_dark"),
     }
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
@@ -82,6 +84,8 @@ def verify_battle_hash(battle: dict[str, Any]) -> bool:
         }
     except Exception:
         return False
+
+
 def _pnl(side: str, entry: float, current: float) -> float:
     if side == "WAIT" or entry <= 0 or current <= 0:
         return 0.0
@@ -226,25 +230,27 @@ class ArenaService:
         except Exception:
             pass
         return battle
+
     async def _refresh(self, battle: dict[str, Any], price_by_symbol: dict[str, float]) -> dict[str, Any]:
         if battle.get("status") == "settled" and battle.get("settled_price") is not None:
             settled = float(battle["settled_price"])
             battle["current_price"] = settled
             battle["user_pnl_pct"] = _pnl(str(battle["user_side"]), float(battle["entry_price"]), settled)
             battle["ai_pnl_pct"] = _pnl(str(battle["ai_side"]), float(battle["entry_price"]), settled)
-            # Backfill tamper-evident hash for battles settled before hashing existed.
+            if not battle.get("shadow"):
+                battle = await self._attach_shadow(battle)
+            # Backfill only after optional Shadow/flatten attribution so a new
+            # freeze commits to the full settled record. Older stored hashes
+            # remain verifiable through the compatibility paths above.
             if not battle.get("settlement_hash"):
                 try:
                     battle["settlement_hash"] = battle_hash(battle)
-                    await store.save("battles", str(battle["id"]), battle)
                 except Exception:
                     pass
-            if not battle.get("shadow"):
-                battle = await self._attach_shadow(battle)
-                try:
-                    await store.save("battles", str(battle["id"]), battle)
-                except Exception:
-                    pass
+            try:
+                await store.save("battles", str(battle["id"]), battle)
+            except Exception:
+                pass
             return battle
 
         current = price_by_symbol.get(
