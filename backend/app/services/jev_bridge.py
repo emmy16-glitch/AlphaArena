@@ -21,6 +21,9 @@ class JevBridge:
     has access to.
     """
 
+    def __init__(self, *, transport: httpx.AsyncBaseTransport | None = None) -> None:
+        self._transport = transport
+
     @property
     def enabled(self) -> bool:
         return bool(settings.jev_adapter_url.strip())
@@ -49,7 +52,7 @@ class JevBridge:
         started = time.perf_counter()
         try:
             timeout = httpx.Timeout(max(0.2, settings.jev_adapter_timeout_seconds))
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, transport=self._transport) as client:
                 response = await client.post(settings.jev_adapter_url, json=payload, headers=headers)
                 response.raise_for_status()
                 data = response.json()
