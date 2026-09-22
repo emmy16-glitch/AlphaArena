@@ -12,10 +12,11 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
-from app.schemas import BattleCreateRequest, DecisionNightWatchRequest, DecisionSnapshotRequest, DecisionSubmitRequest, MarketTwinRequest, NightWatchRequest, PortfolioStressRequest, TraderProfileRequest
+from app.schemas import BattleCreateRequest, DecisionNightWatchRequest, DecisionSessionRequest, DecisionSnapshotRequest, DecisionSubmitRequest, MarketTwinRequest, NightWatchRequest, PortfolioStressRequest, TraderProfileRequest
 from app.services.arena import ArenaError, arena_service
 from app.services.bitget import BitgetError, bitget_market
 from app.services.budget import qwen_budget
+from app.services.decision_sessions import decision_sessions
 from app.services.decision_tape import decision_tape
 from app.services.market_twin import market_twin
 from app.services.nightwatch import nightwatch
@@ -481,6 +482,67 @@ async def evaluate_decisions(x_player_id: str | None = Header(default=None)) -> 
 async def decision_summary(x_player_id: str | None = Header(default=None)) -> dict[str, object]:
     try:
         return {"data": await decision_tape.summary(_player_id(x_player_id))}
+    except BitgetError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/api/decision-sessions")
+async def create_decision_session(
+    request: DecisionSessionRequest,
+    x_player_id: str | None = Header(default=None),
+) -> dict[str, object]:
+    if not request.thesis or not request.thesis.strip():
+        return _problem(
+            422, "CHECK_INPUT",
+            "Write a thesis before testing it.",
+            "Describe the market idea, direction and horizon, then test again.",
+        )
+    try:
+        return {
+            "data": await decision_sessions.create_session(
+                symbol=request.symbol,
+                thesis=request.thesis,
+                human_direction=request.human_direction,
+                horizon=request.horizon,
+                confidence=request.confidence,
+                risk_pct=request.risk_pct,
+                player_id=_player_id(x_player_id),
+            )
+        }
+    except BitgetError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/decision-sessions/{session_id}")
+async def get_decision_session(session_id: str) -> dict[str, object]:
+    session = await decision_sessions.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Decision session not found")
+    return {"data": session}
+
+
+@app.get("/api/decision-sessions/{session_id}/receipt")
+async def verify_decision_receipt(session_id: str) -> dict[str, object]:
+    result = await decision_sessions.verify_receipt(session_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Decision session not found")
+    return {"data": result}
+
+
+@app.post("/api/decision-sessions/{session_id}/enter-arena")
+async def enter_arena_from_session(
+    session_id: str, x_player_id: str | None = Header(default=None)
+) -> dict[str, object]:
+    try:
+        return {
+            "data": await decision_sessions.enter_arena(session_id, player_id=_player_id(x_player_id))
+        }
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Decision session not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ArenaError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except BitgetError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

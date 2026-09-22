@@ -219,6 +219,15 @@ class DecisionSubmitRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class DecisionSessionRequest(BaseModel):
+    symbol: str = Field(default="rNVDA", min_length=1, max_length=16)
+    thesis: str = Field(min_length=1, max_length=2000)
+    human_direction: str = Field(default="WAIT", min_length=1, max_length=16)
+    horizon: str = Field(default="24h", min_length=1, max_length=8)
+    confidence: float = Field(default=60.0, ge=0, le=100)
+    risk_pct: float = Field(default=2.0, ge=0.1, le=25)
+
+
 class ShadowAttribution(BaseModel):
     listed_move_pct: float = 0.0
     shadow_move_pct: float = 0.0

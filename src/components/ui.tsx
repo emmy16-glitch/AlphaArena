@@ -9,13 +9,18 @@ export function MicroLabel({ children, className }: { children: ReactNode; class
 export function Logo({ dark = false, compact = false }: { dark?: boolean; compact?: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className={cn('flex h-7 w-7 items-center justify-center rounded-[8px]', dark ? 'bg-white text-black' : 'bg-[#141412] text-white')} aria-hidden="true">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-          <path d="M8 1.5L14.5 14H11.7L8 6.8L4.3 14H1.5L8 1.5Z" fill="currentColor" />
-          <path d="M5.4 11.5H10.6" stroke={dark ? '#141412' : '#FAF9F6'} strokeWidth="1.4" />
+      <div aria-hidden="true" className="flex h-9 w-9 items-center justify-center">
+        <svg width="34" height="30" viewBox="0 0 34 30" fill="none">
+          <path d="M11 3L20 24H14.8L11 15.2L7.2 24H2L11 3Z" stroke="#D8B45C" strokeWidth="2.2" strokeLinejoin="round" fill="none" />
+          <path d="M23 3L32 24H26.8L23 15.2L19.2 24H14L23 3Z" stroke="#D8B45C" strokeWidth="2.2" strokeLinejoin="round" fill="none" opacity="0.85" />
         </svg>
       </div>
-      {!compact && <span className={cn('text-[15px] font-semibold tracking-tight', dark ? 'text-white' : 'text-[#141412]')}>AlphaArena</span>}
+      {!compact && (
+        <span className="leading-none">
+          <span className={cn('block text-[19px] font-bold tracking-tight', dark ? 'text-white' : 'text-[#141412]')}>AlphaArena</span>
+          <span className="mt-1 block text-[9px] font-semibold uppercase tracking-[0.24em] text-[#D8B45C]">Ideas on trial</span>
+        </span>
+      )}
     </div>
   );
 }
@@ -24,18 +29,18 @@ export function Sparkline({ data, width = 120, height = 36, positive, className,
   const reactId = useId().replace(/:/g, '');
   const safeData = data.length > 1 ? data : [0, 0];
   const up = positive ?? safeData[safeData.length - 1] >= safeData[0];
-  const color = up ? '#0D7A4F' : '#C93A3A';
+  const color = up ? '#22B06B' : '#E5484D';
   const path = sparkPath(safeData, width, height);
   const area = `${path} L${width},${height} L0,${height} Z`;
   const gid = id || `spark-${reactId}`;
   const min = Math.min(...safeData); const max = Math.max(...safeData); const range = max - min || 1;
   const endY = height - ((safeData[safeData.length - 1] - min) / range) * (height - 4) - 2;
   return (
-    <svg aria-hidden="true" width={width} height={height} viewBox={`0 0 ${width} ${height}`} className={className} fill="none">
-      <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.14" /><stop offset="100%" stopColor={color} stopOpacity="0" /></linearGradient></defs>
+    <svg aria-hidden="true" width={width} height={height} viewBox={`0 0 ${width} ${height}`} className={className} fill="none" preserveAspectRatio="none">
+      <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.22" /><stop offset="100%" stopColor={color} stopOpacity="0.02" /></linearGradient></defs>
       <path d={area} fill={`url(#${gid})`} />
-      <path d={path} stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="live-line" />
-      <circle cx={width - 1.5} cy={endY} r="2.5" fill={color} stroke="#fff" strokeWidth="1.2" />
+      <path d={path} stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="live-line" />
+      <circle cx={width - 1.5} cy={endY} r="3" fill={color} stroke="#fff" strokeWidth="1.4" />
     </svg>
   );
 }
@@ -54,7 +59,7 @@ export function SegButton({ active, children, onClick }: { active?: boolean; chi
 }
 
 export function ActionButton({ variant = 'primary', children, onClick, className, disabled }: { variant?: 'primary' | 'secondary' | 'ghost' | 'accent'; children: ReactNode; onClick?: () => void; className?: string; disabled?: boolean }) {
-  return <button type="button" disabled={disabled} onClick={onClick} className={cn('inline-flex min-h-11 items-center justify-center gap-2 rounded-full text-[14px] font-medium transition-colors duration-200 active:scale-[0.98]', variant === 'primary' && 'bg-[#141412] px-5 py-2.5 text-white hover:bg-black', variant === 'accent' && 'bg-[#1D3DFF] px-5 py-2.5 text-white hover:bg-[#0F22B8]', variant === 'secondary' && 'border border-[#D9D7CF] bg-white px-5 py-2.5 text-[#141412] hover:border-[#141412]', variant === 'ghost' && 'px-3 py-1.5 text-[#55554F] hover:text-[#141412]', className)}>{children}</button>;
+  return <button type="button" disabled={disabled} onClick={onClick} className={cn('inline-flex min-h-11 items-center justify-center gap-2 rounded-full text-[14px] font-medium transition-colors duration-200 active:scale-[0.98]', variant === 'primary' && 'bg-[#141412] px-5 py-2.5 text-white hover:bg-black', variant === 'accent' && 'bg-[#A67C1A] px-5 py-2.5 text-white hover:bg-[#8A6512]', variant === 'secondary' && 'border border-[#D9D7CF] bg-white px-5 py-2.5 text-[#141412] hover:border-[#141412]', variant === 'ghost' && 'px-3 py-1.5 text-[#55554F] hover:text-[#141412]', className)}>{children}</button>;
 }
 
 export function ScoreRing({ score, size = 64, label }: { score: number; size?: number; label?: string }) {

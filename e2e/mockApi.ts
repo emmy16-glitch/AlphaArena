@@ -184,6 +184,37 @@ const trackRecordPopulated = {
   disclaimer: 'Paper-only aggregate of your own settled battles. A good past score does not prove a repeatable edge; it only shows whether past confidence matched past outcomes.',
 };
 
+const decisionSession = {
+  id: 'dss-test123',
+  symbol: 'rNVDA',
+  thesis: 'NVDA stays strong over the next 24 hours.',
+  horizon: '24h',
+  horizon_hours: 24,
+  snapshot: {
+    id: 'snap-test123', symbol: 'rNVDA', captured_at: '2026-09-10T10:00:00Z',
+    market_timestamp: 1789034400000, price: 100, change_pct_24h: 1.42,
+    spread_bps: 4, spark: [98, 99, 100, 101, 100.5, 102, 103], source: 'bitget',
+  },
+  snapshot_hash: 'abc123snapshot',
+  participants: {
+    human: { lane: 'human', direction: 'LONG', confidence: 60, model: 'human', status: 'decided', snapshot_id: 'snap-test123', reasoning: 'Human call frozen at test time.' },
+    nightwatch: { lane: 'nightwatch', direction: 'LONG', confidence: 64, model: 'nightwatch-v1', status: 'decided', snapshot_id: 'snap-test123', reasoning: 'The idea survives, but confirmation is incomplete.' },
+    qwen: { lane: 'qwen', direction: null, confidence: null, model: 'qwen', status: 'unavailable', snapshot_id: 'snap-test123', reasoning: null },
+    baseline: { lane: 'baseline', direction: 'LONG', confidence: 58, model: 'deterministic-baseline-v1', status: 'decided', snapshot_id: 'snap-test123', reasoning: 'Transparent momentum benchmark.' },
+  },
+  refusal: null,
+  risk: { risk_pct: 2, max_risk_pct: 10, mode: 'paper-only' },
+  evidence_references: { snapshot_id: 'snap-test123', source: 'bitget' },
+  dataset_source_provenance: 'bitget',
+  ready_for_arena: true,
+  decided_count: 3,
+  unavailable_count: 1,
+  created_at: '2026-09-10T10:00:00Z',
+  receipt: {},
+  receipt_hash: 'deadbeefreceipt0001',
+  arena_battle_id: null,
+};
+
 function json(route: Route, data: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
 }
@@ -198,6 +229,10 @@ export async function mockApi(page: Page, options?: { pulseFailure?: boolean; tr
     const request = route.request();
     const path = new URL(request.url()).pathname;
 
+    if (path === '/api/decision-sessions' && request.method() === 'POST') return json(route, { data: decisionSession });
+    if (path === '/api/decision-sessions/dss-test123') return json(route, { data: decisionSession });
+    if (path === '/api/decision-sessions/dss-test123/receipt') return json(route, { data: { decision_session_id: 'dss-test123', verified: true, receipt_hash: 'deadbeefreceipt0001', recomputed_hash: 'deadbeefreceipt0001' } });
+    if (path === '/api/decision-sessions/dss-test123/enter-arena' && request.method() === 'POST') return json(route, { data: { session: decisionSession, battle: { id: 'battle-test' } } });
     if (path === '/api/market/assets') return json(route, { data: assets });
     if (path.startsWith('/api/market/assets/')) return json(route, { data: assets.find((asset) => asset.symbol === decodeURIComponent(path.split('/').pop() || '')) || assets[0] });
     if (path === '/api/arena/portfolio') return json(route, { data: portfolio });

@@ -15,6 +15,7 @@ Start with the repository [README](../README.md) for the one-screen product over
 | 4 | [Vibe-Trading research](VIBE_TRADING.md) | Sidecar isolation, retrieved evidence, historical calculations, provenance |
 | 5 | [Portfolio stress test](PORTFOLIO_STRESS_TEST.md) | Multi-position scenarios over the same deterministic engine |
 | 5a | [Decision Tape](DECISION_TAPE.md) | Shared market snapshots + measurable Human/NightWatch/Jev/baseline outcomes |\n| 5b | [Shadow Session](SHADOW_SESSION.md) | Listed/Shadow boundary, kill attribution, commitment mechanic, Thesis Morgue, judge script |
+| 5c | [Evidence](EVIDENCE.md) | Live vs historical vs scenario vs paper vs model vs verification evidence taxonomy |
 | 6 | [Budget and safety](BUDGET_AND_SAFETY.md) | Paper-capital, model-call, and background-cost invariants |
 | 7 | [Deployment](DEPLOYMENT.md) | Vercel + Compose + Atlas runbook for the live build |
 | 8 | [Testing and UX](TESTING_AND_UX.md) | Playwright device/browser matrix and release gate |

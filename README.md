@@ -1,6 +1,14 @@
 # AlphaArena
 
-> **Predict less. Test more. Let the market decide.**
+> **Put your market idea on trial.**
+>
+> **Same evidence. Same timestamp. No hindsight.**
+>
+> **Human and AI make their calls. The market settles the argument.**
+
+**AlphaArena freezes one market moment, lets humans and AI make their decisions from exactly the same evidence, then lets the real market settle the argument.**
+
+The loop: **Select asset → Write thesis → Test thesis → Freeze evidence → Compare Human + AI decisions → Enter Arena → Observe real market outcome → Settle and verify → Learn from the result.**
 
 [![CI](https://github.com/emmy16-glitch/AlphaArena/actions/workflows/ci.yml/badge.svg)](https://github.com/emmy16-glitch/AlphaArena/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
