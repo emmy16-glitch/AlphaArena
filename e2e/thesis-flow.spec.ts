@@ -54,3 +54,19 @@ test('back/forward navigation preserves the new IA', async ({ page }) => {
   await page.goBack();
   await expect(page.getByTestId('research-screen')).toBeVisible();
 });
+
+test('research nightwatch tab calls the real analyze endpoint', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/#/research');
+  await expect(page.getByTestId('research-screen')).toBeVisible();
+  await expect(page.getByTestId('research-nightwatch')).toBeVisible();
+  await expect(page.getByTestId('research-nightwatch')).toContainText('NightWatch Analysis', { timeout: 15000 });
+});
+
+test('history tape table loads the real export log', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/#/history');
+  await expect(page.getByTestId('history-screen')).toBeVisible();
+  await expect(page.getByTestId('history-tape')).toBeVisible();
+  await expect(page.getByTestId('history-tape')).toContainText('NVDA stays strong', { timeout: 15000 });
+});

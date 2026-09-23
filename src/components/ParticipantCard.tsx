@@ -47,7 +47,7 @@ function callPill(call: string) {
   return 'bg-[#F1F2F4] text-[#6B7280]';
 }
 
-export default function ParticipantCard({ lane, participant }: { lane: string; participant: SessionParticipant }) {
+export default function ParticipantCard({ lane, participant, riskLabel }: { lane: string; participant: SessionParticipant; riskLabel?: string }) {
   const [open, setOpen] = useState(false);
   const meta = META[lane] || { name: lane.toUpperCase(), sub: lane };
   const unavailable = participant.status === 'unavailable';
@@ -85,6 +85,9 @@ export default function ParticipantCard({ lane, participant }: { lane: string; p
             {participant.confidence != null ? `${participant.confidence.toFixed(0)}%` : '—'}
             <span className="ml-1 text-[12.5px] font-normal text-[#1A1D21]">confidence</span>
           </span>
+          {riskLabel && (
+            <span className="mt-1 text-[12px] font-medium text-[#6B7280]" title="Risk band derived from frozen confidence">{riskLabel}</span>
+          )}
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}

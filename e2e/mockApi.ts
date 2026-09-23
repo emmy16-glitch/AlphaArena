@@ -219,6 +219,12 @@ function json(route: Route, data: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
 }
 
+const exportRows = [
+  { timestamp: '2026-09-21T19:42:00Z', battle_id: 'battle-nvda-1', asset: 'rNVDA', direction: 'LONG', opponent_side: 'SHORT', entry_price: 876.32, exit_price: null, quantity: 10, stake: 10000, status: 'live', pnl_pct: 0, pnl_dollars: 0, account_balance_after: null, settled_at: null, settlement_hash: 'a9f67c2e0001', hash_verified: true, thesis: 'NVDA stays strong over the next 24 hours.' },
+  { timestamp: '2026-09-18T10:00:00Z', battle_id: 'battle-btc-1', asset: 'rBTC', direction: 'LONG', opponent_side: 'SHORT', entry_price: 65000, exit_price: 67730, quantity: 1, stake: 5000, status: 'settled', pnl_pct: 4.2, pnl_dollars: 210, account_balance_after: 100210, settled_at: '2026-09-19T10:00:00Z', settlement_hash: 'btc65k0001', hash_verified: true, thesis: 'BTC breaks $65K within 24 hours.' },
+  { timestamp: '2026-09-17T16:00:00Z', battle_id: 'battle-tsla-1', asset: 'rTSLA', direction: 'LONG', opponent_side: 'SHORT', entry_price: 348.2, exit_price: 341.1, quantity: 10, stake: 5000, status: 'settled', pnl_pct: -2.86, pnl_dollars: -143, account_balance_after: 99900, settled_at: '2026-09-18T16:00:00Z', settlement_hash: 'tsla2500001', hash_verified: true, thesis: 'TSLA reclaims $250 within 24 hours.' },
+];
+
 export async function mockApi(page: Page, options?: { pulseFailure?: boolean; trackRecord?: 'empty' | 'insufficient' | 'populated'; twinFallback?: boolean }) {
   const trackRecord = options?.trackRecord === 'populated'
     ? trackRecordPopulated
@@ -250,6 +256,7 @@ export async function mockApi(page: Page, options?: { pulseFailure?: boolean; tr
     if (path === '/api/arena/morgue') return json(route, { data: [{ id: 'battle-test', symbol: 'rNVDA', thesis: 'Test thesis', wrong_sentence: 'weekend tape gaps against me', user_side: 'LONG', entry_price: 100, settled_price: 97.2, user_pnl_pct: -2.8, settled_at: '2026-09-12T03:11:00Z', settlement_hash: '9f3adeadbeef0001', shadow: { listed_move_pct: 0.4, shadow_move_pct: -3.2, total_move_pct: -2.8, kill_session: 'shadow', kill_at: '2026-09-12T03:11:00Z', candle_count: 24, granularity: '1H', is_estimate: true, last_listed_price: 100.4, session_label: 'Listed = NYSE hours. Shadow = everything else — nights, weekends, holidays.' } }] });
     if (path === '/api/session/now') return json(route, { data: { now: '2026-09-12T03:11:00Z', session: 'shadow', label: 'Listed = NYSE hours. Shadow = everything else — nights, weekends, holidays.' } });
     if (path === '/api/arena/leaderboard') return json(route, { data: [] });
+    if (path === '/api/arena/export.json') return json(route, { data: exportRows });
     if (path === '/api/track-record') return json(route, { data: trackRecord });
     if (path === '/api/traders') return json(route, { data: [] });
     if (path.startsWith('/api/integrations/')) return json(route, { data: {} });

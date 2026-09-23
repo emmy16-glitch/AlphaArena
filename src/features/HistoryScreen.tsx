@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from 'react';
 import { MicroLabel, SegButton } from '../components/ui';
 
 const DecisionTape = lazy(() => import('./DecisionTapePanel'));
+const TapeTable = lazy(() => import('./HistoryTapeTable'));
 const TrackRecord = lazy(() => import('./TrackRecordScreen'));
 const Morgue = lazy(() => import('./MorgueScreen'));
 
@@ -41,7 +42,12 @@ export default function HistoryScreen({ onNav }: { onNav: Nav }) {
             </div>
           }
         >
-          {tab === 'tape' && <DecisionTape symbol="rNVDA" thesis="" thesisDirection="WAIT" />}
+          {tab === 'tape' && (
+            <div className="space-y-4">
+              <TapeTable />
+              <DecisionTape symbol="rNVDA" thesis="" thesisDirection="WAIT" />
+            </div>
+          )}
           {tab === 'record' && <TrackRecord onNav={onNav} />}
           {tab === 'morgue' && <Morgue onNav={onNav} />}
         </Suspense>
