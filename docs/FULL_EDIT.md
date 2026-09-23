@@ -117,3 +117,37 @@ exactly the same evidence, then lets the market settle the argument."
 2. `npm run typecheck` to confirm the rewritten ResearchScreen compiles.
 3. Continue at the first ⏳ row (Phase 8: ArenaHubScreen).
 4. Finish with Phase 14 (verify + push).
+
+## Final handoff (2026-09-23)
+
+### Architecture discovered
+- Frontend: Vite+React routes home/research/arena/history (+ legacy aliases asset, pulse, nightwatch, lab, battle, morgue, portfolio, track-record, leaderboard preserved in `src/App.tsx`). Screens in `src/features/`, shared UI in `src/components/` (AppShell, TruthLabel, ParticipantCard, ui), API layer `src/product/api.ts`, sessions `src/product/decisionSessions.ts`, market state `src/market/MarketDataContext`.
+- Backend (FastAPI `backend/app/main.py`): market/instruments/reality, pulse, vibe research, nightwatch/analyze, twin/simulate + portfolio, decision-tape snapshots/decisions/evaluate, decision-sessions (freeze/receipt/enter-arena), arena battles/review/verify/morgue/portfolio/leaderboard/export, track-record, backtest, traders, integrations/status+diagnostics. Services in `backend/app/services/` (bitget, nightwatch, qwen, jev_bridge, market_twin, arena, decision_sessions, decision_tape, shadow, review, calibration, vibe, signal...). MongoDB persistence with in-memory fallback.
+
+### UX problems found → fixed
+- Giant nav → HOME / RESEARCH / ARENA / HISTORY (+ Settings via diagnostics link).
+- Card Everywhere + metric walls → one screen one question, progressive disclosure.
+- Fake participant calls → state-driven Test Thesis (validating → freezing → evidence → nightwatch → qwen → baseline → ready), double-click guard, provider failure = Unavailable with reason.
+- Fabricated evidence providers (Bloomberg/Reuters/TradingView/SEC) → removed; Evidence tab now lists only real sources with working View buttons (this change).
+- Dead Filter button + decorative View spans → Filter replaced by working count label; every View is a real button navigating to home/arena/history/nightwatch/lab.
+- Duplicated search → single global header search only.
+- History tabs identical → Decision Tape (export.json table + timeline), Track Record (aggregates), Morgue (list + Thesis Details) are distinct.
+- Stress vs MarketTwin duplication → MarketTwin builds scenarios; Stress tab is the portfolio stress entry point (links to Portfolio Stress, no second simulator).
+
+### Routes / components changed
+- `src/features/ResearchScreen.tsx` (hub + NightWatch + MarketTwin + honest Evidence + Stress entry), `ArenaHubScreen.tsx` (live session panel), `HistoryScreen.tsx` + `HistoryTapeTable.tsx` (new), `MorgueScreen.tsx` (list + detail), `ParticipantCard.tsx` (riskLabel), `e2e/mockApi.ts` + `e2e/thesis-flow.spec.ts` (+ evidence-honesty test).
+- Preserved but relocated: NightWatchScreen, MarketTwinScreen, PortfolioStressTest, PulseScreen, ConnectedAsset/Trader, TrackRecordScreen, DecisionTapePanel, ShadowSession — reachable via Research tabs or legacy aliases, nothing deleted.
+
+### Tests / builds
+- `npm run typecheck` clean; `vite build` ok; backend `pytest` 88 passed (run from `backend/`).
+- Playwright specs: home pending/disabled arena, invalid thesis, freeze + same-snapshot calls, enter arena, IA back/forward, nightwatch endpoint, tape export, evidence honesty (no Bloomberg/Reuters, >3 working View buttons).
+
+### Remaining limitations / external config
+- Live prices need Bitget Reality credentials; otherwise UI shows Market Limited / fallback, never fake-live.
+- Qwen via Groq key optional; failures render Unavailable, never HOLD.
+- MongoDB optional; without it persistence is in-memory (production Arena needs durable storage).
+- No real-money paths exist by design (paper only).
+
+### Intentional mockup deviations
+- Did not copy reference collage text/prices/providers literally; adapted layout to real endpoints and honest provenance.
+- Stress Test kept as portfolio entry instead of a second scenario builder to avoid duplication.

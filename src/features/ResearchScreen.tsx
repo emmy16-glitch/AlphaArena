@@ -303,7 +303,7 @@ function MarketTwinTab({ symbol }: { symbol: string }) {
   );
 }
 
-function EvidenceTab() {
+function EvidenceTab({ onNav, symbol }: { onNav: Nav; symbol: string }) {
   const { status, lastUpdated } = useMarketData();
   const [cat, setCat] = useState<(typeof EVIDENCE_CATS)[number]>('Live Market');
   const live = status === 'live';
@@ -316,15 +316,25 @@ function EvidenceTab() {
     }
   }, [lastUpdated]);
 
+  // Honest evidence list: only sources AlphaArena actually produces.
+  // No Bloomberg / Reuters / TradingView / SEC — those were mockup placeholders.
   const rows = [
-    { name: 'Bitget Market Data', desc: 'Real-time price, volume, order book', badge: live ? 'Live' : 'Limited', tone: live ? 'bg-[#E6F4EC] text-[#0D7A4F]' : 'bg-[#FDF3D7] text-[#9A6B00]', time: stamp, cat: 'Live Market', kind: 'LIVE' as const },
-    { name: 'Bloomberg Terminal (Historical)', desc: 'Analyst estimates and financial data', badge: 'Verified', tone: 'bg-[#EEF0FF] text-[#0F22B8]', time: 'Daily bars', cat: 'Analyst Reports', kind: 'VERIFIED HISTORICAL' as const },
-    { name: 'Reuters News', desc: 'Latest market news and developments', badge: 'Live', tone: 'bg-[#E6F4EC] text-[#0D7A4F]', time: stamp, cat: 'News', kind: 'LIVE' as const },
-    { name: 'TradingView Technicals', desc: 'Technical indicators and patterns', badge: 'Live', tone: 'bg-[#E6F4EC] text-[#0D7A4F]', time: stamp, cat: 'Technical', kind: 'DETERMINISTIC CALCULATION' as const },
-    { name: 'SEC Filings', desc: 'Company financial filings', badge: 'Verified', tone: 'bg-[#EEF0FF] text-[#0F22B8]', time: 'Filed reports', cat: 'Analyst Reports', kind: 'VERIFIED HISTORICAL' as const },
-    { name: 'Alternative Data (Sentiment)', desc: 'Social and news sentiment analysis', badge: 'Processed', tone: 'bg-[#F1F2F4] text-[#4B5563]', time: 'Computed', cat: 'News', kind: 'MODEL-GENERATED INTERPRETATION' as const },
+    { name: 'Bitget Reality Tape', desc: 'Observed price, volume, order book for this asset', badge: live ? 'Live' : 'Limited', tone: live ? 'bg-[#E6F4EC] text-[#0D7A4F]' : 'bg-[#FDF3D7] text-[#9A6B00]', time: stamp, cat: 'Live Market', kind: 'LIVE' as const, target: 'Home snapshot card' },
+    { name: 'Frozen Decision Snapshot', desc: 'Immutable market moment all lanes decide from', badge: 'Deterministic', tone: 'bg-[#EEF0FF] text-[#0F22B8]', time: 'On Test Thesis', cat: 'Live Market', kind: 'DETERMINISTIC CALCULATION' as const, target: 'home' },
+    { name: 'NightWatch Analysis', desc: 'Adversarial model interpretation of frozen evidence', badge: 'Model', tone: 'bg-[#F1F2F4] text-[#4B5563]', time: 'Per thesis', cat: 'News', kind: 'MODEL-GENERATED INTERPRETATION' as const, target: 'nightwatch' },
+    { name: 'MarketTwin Scenario', desc: 'What-if stress estimate — never a prediction', badge: 'Scenario', tone: 'bg-[#F1F2F4] text-[#4B5563]', time: 'On demand', cat: 'Macro', kind: 'MODEL-GENERATED INTERPRETATION' as const, target: 'markettwin' },
+    { name: 'Decision Tape + Settlement Hash', desc: 'Chronological thesis-to-settlement record, hash verified', badge: 'Paper', tone: 'bg-[#F1F2F4] text-[#4B5563]', time: 'Per session', cat: 'On-chain', kind: 'PAPER' as const, target: 'history' },
+    { name: 'Shadow Session Attribution', desc: 'Listed vs 24h shadow move split at settlement', badge: 'Verified', tone: 'bg-[#EEF0FF] text-[#0F22B8]', time: 'At settlement', cat: 'Technical', kind: 'VERIFIED HISTORICAL' as const, target: 'arena' },
   ];
-  const visible = cat === 'Live Market' ? rows : rows.filter((r) => r.cat === cat);
+  const visible = cat === 'Live Market' ? rows.filter((r) => r.cat === 'Live Market' || r.cat === 'Technical') : rows.filter((r) => r.cat === cat);
+  const list = visible.length > 0 ? visible : rows;
+
+  const openTarget = (target: string) => {
+    if (target === 'home' || target === 'arena' || target === 'history') onNav(target, { symbol });
+    else if (target === 'nightwatch') onNav('nightwatch', { symbol });
+    else if (target === 'markettwin') onNav('lab', { symbol });
+    else onNav('research', { symbol });
+  };
 
   return (
     <div data-testid="research-evidence">
@@ -336,13 +346,10 @@ function EvidenceTab() {
                 cat === c ? 'border-[#111315] text-[#111315]' : 'border-transparent text-[#6B7280] hover:text-[#111315]')}>{c}</button>
           ))}
         </div>
-        <button type="button" aria-label="Filter evidence"
-          className="hidden min-h-10 shrink-0 items-center gap-1.5 rounded-xl border border-[#E4E6E9] px-3 text-[12.5px] font-semibold text-[#4B5563] sm:inline-flex">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M1 2h12M3.5 7h7M6 12h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg> Filter
-        </button>
+        <p className="hidden shrink-0 text-[11.5px] text-[#9AA0A8] sm:block">{list.length} sources · {symbol.replace(/^r/, '')}</p>
       </div>
       <ul className="mt-3 divide-y divide-[#F1F2F4] rounded-2xl border border-[#ECEDEF] bg-white">
-        {(visible.length > 0 ? visible : rows).map((row) => (
+        {list.map((row) => (
           <li key={row.name} className="flex items-center gap-3 p-4">
             <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#EEF4FF] text-[13px] font-extrabold text-[#1D3DFF]">{row.name.charAt(0)}</span>
             <span className="min-w-0 flex-1">
@@ -354,11 +361,12 @@ function EvidenceTab() {
             </span>
             <span className="mono-num hidden w-24 shrink-0 text-right text-[11.5px] text-[#6B7280] md:block">{row.time}</span>
             <span className="hidden lg:block"><TruthLabel kind={row.kind} /></span>
-            <span className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-semibold text-[#1A1D21]">View <ArrowRight size={13} /></span>
+            <button type="button" onClick={() => openTarget(row.target)} aria-label={`View ${row.name}`}
+              className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-xl border border-[#E4E6E9] px-3 text-[12.5px] font-semibold text-[#1A1D21] transition-colors hover:border-[#111315]">View <ArrowRight size={13} /></button>
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-[11.5px] leading-5 text-[#9AA0A8]">Provenance stays visible: live tape is never mixed with historical bars, scenarios, or model text. Full module detail lives under each source.</p>
+      <p className="mt-3 text-[11.5px] leading-5 text-[#9AA0A8]">Provenance stays visible: live tape is never mixed with historical bars, scenarios, or model text. Only sources AlphaArena actually retrieves are listed — no fabricated providers.</p>
     </div>
   );
 }
@@ -392,7 +400,7 @@ export default function ResearchScreen({ onNav, symbol = 'rNVDA' }: { onNav: Nav
       <div className="mt-4">
         {tab === 'nightwatch' && <NightWatchTab onNav={onNav} symbol={symbol} />}
         {tab === 'markettwin' && <MarketTwinTab symbol={symbol} />}
-        {tab === 'evidence' && <EvidenceTab />}
+        {tab === 'evidence' && <EvidenceTab onNav={onNav} symbol={symbol} />}
         {tab === 'stress' && (
           <section aria-label="Portfolio stress test" className="rounded-2xl border border-[#ECEDEF] bg-white p-5">
             <button type="button" onClick={() => onNav('portfolio')} className="inline-flex min-h-11 items-center gap-1.5 text-[13.5px] font-bold text-[#111315] hover:underline">

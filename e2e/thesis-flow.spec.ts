@@ -63,6 +63,19 @@ test('research nightwatch tab calls the real analyze endpoint', async ({ page })
   await expect(page.getByTestId('research-nightwatch')).toContainText('NightWatch Analysis', { timeout: 15000 });
 });
 
+test('research evidence lists only real sources with working View buttons', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/#/research');
+  await expect(page.getByTestId('research-screen')).toBeVisible();
+  await page.getByRole('tab', { name: 'Evidence' }).click();
+  await expect(page.getByTestId('research-evidence')).toBeVisible();
+  await expect(page.getByTestId('research-evidence')).toContainText('Bitget Reality Tape');
+  await expect(page.getByTestId('research-evidence')).not.toContainText('Bloomberg');
+  await expect(page.getByTestId('research-evidence')).not.toContainText('Reuters');
+  const views = page.getByTestId('research-evidence').getByRole('button', { name: /^View / });
+  expect(await views.count()).toBeGreaterThan(3);
+});
+
 test('history tape table loads the real export log', async ({ page }) => {
   await mockApi(page);
   await page.goto('/#/history');

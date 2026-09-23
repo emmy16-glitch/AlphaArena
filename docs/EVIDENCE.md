@@ -36,6 +36,21 @@ AlphaArena separates what the market showed, what history recorded, what a scena
 - Decision receipts hash canonical fields (session id, asset, snapshot timestamp/hash, provenance, thesis, horizon, every lane call + confidence, model versions, risk config, evidence refs, created timestamp) with SHA-256.
 - Settlement hashes and `verify` endpoints recompute the freeze. `hash matches` means the record is intact.
 
+## What the Research → Evidence tab lists
+
+Only sources AlphaArena actually retrieves:
+
+- Bitget Reality Tape (`LIVE` / `Limited`)
+- Frozen Decision Snapshot (`DETERMINISTIC CALCULATION`)
+- NightWatch Analysis (`MODEL-GENERATED INTERPRETATION`)
+- MarketTwin Scenario (`MODEL-GENERATED INTERPRETATION` / scenario)
+- Decision Tape + Settlement Hash (`PAPER`)
+- Shadow Session Attribution (`VERIFIED HISTORICAL`)
+
+Conceptual mockups once showed Bloomberg / Reuters / TradingView / SEC.
+Those are **not** listed in the product because AlphaArena does not retrieve them.
+Never fabricate source availability.
+
 ## Known limitations
 
 - Candles are ~1h buckets: kill timestamps are estimates (`~03:11 UTC`), not exact fills.
